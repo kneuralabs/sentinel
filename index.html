@@ -12,6 +12,13 @@
 </head>
 <body>
 
+<!-- ── SSO GATE ─────────────────────────────────────────────────────────────────
+     Kneuralabs single sign-on. Gates the app behind sso.kneuralabs.com and only
+     accepts a kn-auth postMessage from that explicit origin. Mirrors the intranet
+     consumer module so behaviour stays identical across apps. -->
+<div id="sso-overlay" style="position:fixed;inset:0;z-index:99999;background:#fff"><iframe id="sso-frame" style="width:100%;height:100%;border:none;display:block" title="Sign in to Kneuralabs"></iframe></div>
+<script>(function(){var s=sessionStorage.getItem('kn-auth');var ok=false;if(s){try{var a=JSON.parse(s);ok=a&&(a.role==='admin'||Array.isArray(a.apps));}catch(_){}if(!ok)sessionStorage.removeItem('kn-auth');}var o=document.getElementById('sso-overlay');if(ok){o.style.display='none';}else{document.getElementById('sso-frame').src='https://sso.kneuralabs.com?redirect=postmessage&v=4&origin='+encodeURIComponent(location.origin);}window.addEventListener('message',function(e){if(e.origin!=='https://sso.kneuralabs.com')return;if(!e.data||e.data.type!=='kn-auth')return;sessionStorage.setItem('kn-auth',JSON.stringify(e.data));o.style.transition='opacity .4s';o.style.opacity='0';setTimeout(function(){o.style.display='none';},420);});}());</script>
+
 <!-- ── APP ──────────────────────────────────────────────────────────────────── -->
 <div class="app">
 
