@@ -186,7 +186,7 @@ header {
 /* Title + access dot. The dot is no longer a boxed button — it sits just after
    the final "l" in "Sentinel" at the baseline, reading as a full stop. */
 .hd-titlewrap { position: relative; display: inline-block; line-height: 1; }
-.access-wrap { position: absolute; left: 100%; bottom: 0; margin-left: -4px; }
+.access-wrap { position: absolute; left: 100%; bottom: -5px; margin-left: -4px; }
 .access-btn {
   border: none; background: none; padding: 6px; margin: 0;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -869,7 +869,7 @@ html[data-theme="dark"] .live-pill { color: #4ade80; border-color: rgba(74,222,1
   .hd-divider { display: none; }
   .hd-title { font-size: 22px; }
   /* Keep the dot as a full stop after "Sentinel" on the smaller mobile title. */
-  .access-wrap { bottom: 0; left: 100%; margin-left: -3px; }
+  .access-wrap { bottom: -4px; left: 100%; margin-left: -3px; }
   .hd-logo { width: 36px; height: 36px; }
   .logo-sq { width: 34px; height: 34px; }
   .status-pill { padding: 4px 8px; font-size: 9px; }
