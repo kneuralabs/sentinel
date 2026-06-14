@@ -163,7 +163,8 @@ async function getVulns(token, owner, repo) {
       ecosystem: a.security_vulnerability?.package?.ecosystem || ''
     }));
   } catch(err) {
-    if (/403|404|security_events/.test(err.message)) return { missingScope: true };
+    if (/GitHub API 404/.test(err.message)) return [];
+    if (/403|security_events/.test(err.message)) return { missingScope: true };
     return { error: err.message };
   }
 }
