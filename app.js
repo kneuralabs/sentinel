@@ -162,7 +162,9 @@ async function getVulns(token, owner, repo) {
     const res  = await apiFetch(`https://api.github.com/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=50`, token);
     const data = await res.json();
     if (!Array.isArray(data)) return [];
-    return data.filter(a => a.state === 'open').map(a => ({
+    return data.filter(a =>
+      a.state === 'open' && !a.dismissed_at && !a.fixed_at && !a.auto_dismissed_at
+    ).map(a => ({
       id:        a.number,
       summary:   a.security_advisory?.summary || 'Unknown vulnerability',
       severity:  a.security_advisory?.severity || 'unknown',
