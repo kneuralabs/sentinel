@@ -708,12 +708,6 @@ function applyTheme(t) {
 applyTheme(activeTheme);
 themeBtn.addEventListener('click', () => applyTheme(activeTheme === 'dark' ? 'light' : 'dark'));
 
-// ── STAT CELL EXPAND/COLLAPSE ────────────────────────────────────────────────
-['cellCommits', 'cellVulns'].forEach(id => {
-  const cell = document.getElementById(id);
-  if (cell) cell.addEventListener('click', () => cell.classList.toggle('open'));
-});
-
 // ── ACCESS POPOVER ────────────────────────────────────────────────────────────
 const accessDotBtn  = document.getElementById('accessDotBtn');
 const accessPopover = document.getElementById('accessPopover');
