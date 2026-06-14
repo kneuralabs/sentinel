@@ -261,10 +261,9 @@ function renderStatDrilldowns(details) {
   const vulnList   = document.getElementById('vulnList');
   if (!repoList) return;
 
-  // Repositories — every repo name, one per line.
+  // Repositories — all names (without owner prefix), comma-separated, always shown.
   repoList.innerHTML = state.repos.length
-    ? state.repos.map(r =>
-        `<div class="stat-list-item"><span class="sli-main">${esc(r.fullName)}</span></div>`).join('')
+    ? esc(state.repos.map(r => r.fullName.split('/').pop()).join(', '))
     : '<div class="stat-list-empty">No repositories</div>';
 
   // New commits — latest 5 across all repos, each tagged with its repo name.
@@ -710,7 +709,7 @@ applyTheme(activeTheme);
 themeBtn.addEventListener('click', () => applyTheme(activeTheme === 'dark' ? 'light' : 'dark'));
 
 // ── STAT CELL EXPAND/COLLAPSE ────────────────────────────────────────────────
-['cellRepos', 'cellCommits', 'cellVulns'].forEach(id => {
+['cellCommits', 'cellVulns'].forEach(id => {
   const cell = document.getElementById(id);
   if (cell) cell.addEventListener('click', () => cell.classList.toggle('open'));
 });
