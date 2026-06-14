@@ -1,9 +1,11 @@
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const SK = { TOKEN: 'sentinel_token', META: 'sentinel_meta' };
 const SCAN_BATCH = 3;
+const LIVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // ── STATE ────────────────────────────────────────────────────────────────────
-let state = { token: null, repos: [], fetchMap: {}, lastSync: null };
+let state = { token: null, repos: [], fetchMap: {}, lastSync: null, hasSecurityScope: null };
+let liveCheckId = null;
 
 // ── DOM REFS ─────────────────────────────────────────────────────────────────
 const tokenInput  = document.getElementById('githubToken');
@@ -219,6 +221,51 @@ function setConnected(n) {
   sText.textContent = `${n} repos`;
 }
 
+// ── LIVE CHECK ────────────────────────────────────────────────────────────────
+const livePill   = document.getElementById('livePill');
+const liveStatus = document.getElementById('liveStatus');
+
+function startLiveCheck() {
+  stopLiveCheck();
+  livePill.style.display = 'flex';
+  liveStatus.textContent = 'Live';
+  liveCheckId = setInterval(async () => {
+    if (!state.token || !state.repos.length) return;
+    liveStatus.textContent = 'Checking…';
+    try {
+      const result = await runScan();
+      liveStatus.textContent = 'Live';
+      syncEl.textContent = fmtTime(new Date().toISOString());
+      if (result.totalVuln > 0) {
+        toast(`Live scan: ${pluralize(result.totalVuln, 'vulnerability')} found`);
+      }
+    } catch { liveStatus.textContent = 'Live'; }
+  }, LIVE_INTERVAL_MS);
+}
+
+function stopLiveCheck() {
+  clearInterval(liveCheckId);
+  liveCheckId = null;
+  livePill.style.display = 'none';
+}
+
+// ── SCOPE WARNING ─────────────────────────────────────────────────────────────
+function showScopeWarning() {
+  const existing = document.getElementById('scopeWarn');
+  if (existing) return;
+  const el = document.createElement('div');
+  el.id = 'scopeWarn';
+  el.className = 'scope-warn';
+  el.innerHTML = `<strong>Missing scope:</strong> Your token lacks <code>security_events</code> — vulnerability data is unavailable. <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">Update token →</a>`;
+  const controls = document.querySelector('.dash-controls');
+  controls.parentNode.insertBefore(el, controls);
+}
+
+function hideScopeWarning() {
+  const el = document.getElementById('scopeWarn');
+  if (el) el.remove();
+}
+
 // ── SHARED VULN + META BATCH SCAN ────────────────────────────────────────────
 // Scans vulns and fetches repo meta (totalCommits, branchCount, latestDate) in parallel.
 // Returns results with latestDate so callers can build fetchMap without a separate pass.
@@ -280,8 +327,7 @@ function renderGrid(details) {
           ? 'error'
           : 'secure';
 
-    return `<div class="repo-tile" onclick="openDetail(${i})">
-      <div class="tile-fill ${color}"></div>
+    return `<div class="repo-tile tile-${color}" onclick="openDetail(${i})">
       <div class="tile-id">
         <div class="tile-owner">${esc(owner)}/</div>
         <div class="tile-repo">${esc(name)}</div>
@@ -295,9 +341,8 @@ function renderGrid(details) {
           <span class="tm-num">${d.branchCount ?? '—'}</span>
           <span class="tm-lbl">branches</span>
         </div>
-        <div class="tile-metric tm-sec">
-          <span class="tm-sec-dot ${color}"></span>
-          <span class="tm-lbl">${secLabel}</span>
+        <div class="tile-metric">
+          <span class="tm-lbl tm-sec-lbl">${secLabel}</span>
         </div>
       </div>
     </div>`;
@@ -307,7 +352,7 @@ function renderGrid(details) {
 }
 
 function finalizeMatrix() {
-  document.querySelectorAll('.repo-tile .tile-fill').forEach(f => f.classList.add('show'));
+  // tiles are styled via tile-green/amber/red classes applied in renderGrid
 }
 
 function renderBaseline() {
@@ -385,13 +430,20 @@ async function fullInit(token) {
     await wait(260); addLine('Connecting to GitHub API…'); setProgress(5);
     await wait(350); addLine(`Authenticating token ${token.slice(0, 8)}…`, 'hl');
 
-    let repos;
-    try { repos = await getAllRepos(token); }
+    let repos, tokenScopes = [];
+    try {
+      const authRes = await apiFetch('https://api.github.com/user', token);
+      tokenScopes = (authRes.headers.get('X-OAuth-Scopes') || '').split(',').map(s => s.trim()).filter(Boolean);
+      repos = await getAllRepos(token);
+    }
     catch(err) {
       addLine('Authentication failed — ' + err.message, 'err');
       await wait(1600); await hideOverlay();
       toast(err.message, true); return;
     }
+
+    const hasSecScope = tokenScopes.includes('security_events') || tokenScopes.includes('repo');
+    state.hasSecurityScope = hasSecScope;
 
     if (!repos.length) {
       addLine('No repositories found', 'err');
@@ -440,6 +492,9 @@ async function fullInit(token) {
     toast(totalVuln > 0
       ? `${pluralize(totalVuln, 'vulnerability')} found — remediation plans embedded below`
       : 'Scan complete — all repositories are secure');
+
+    if (!hasSecScope) showScopeWarning(); else hideScopeWarning();
+    startLiveCheck();
 
   } catch(err) {
     addLine('Unexpected error: ' + err.message, 'err');
@@ -517,6 +572,8 @@ function restore() {
       await wait(780);
       await hideOverlay();
       finalizeMatrix();
+      if (state.hasSecurityScope === false) showScopeWarning();
+      startLiveCheck();
     }, 400);
     return true;
   } catch { return false; }
@@ -534,13 +591,15 @@ tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') connectBtn.
 clearBtn.addEventListener('click', () => {
   localStorage.removeItem(SK.TOKEN);
   localStorage.removeItem(SK.META);
-  state = { token: null, repos: [], fetchMap: {}, lastSync: null };
+  state = { token: null, repos: [], fetchMap: {}, lastSync: null, hasSecurityScope: null };
   tokenInput.value = '';
   dashboard.style.display = 'none';
   initMsg.style.display   = 'block';
   initMsg.innerHTML = `<div class="empty-title">Session cleared</div><div class="empty-sub">Enter a new token to reconnect</div>`;
   sDot.classList.remove('live');
   sText.textContent = 'Not connected';
+  stopLiveCheck();
+  hideScopeWarning();
   toast('Session cleared');
 });
 
@@ -622,26 +681,34 @@ function buildCommitsHtml(commits) {
 
 function buildVulnsHtml(vulns, missingScope, vulnError) {
   if (missingScope)
-    return '<div class="detail-err">Missing security_events scope — <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">update token →</a></div>';
+    return `<div class="scope-warn" style="margin:0">
+      <div>
+        <strong>Token missing <code>security_events</code> scope</strong> — Dependabot alerts are not accessible.<br>
+        <span style="font-size:11px;opacity:0.8">Create a new token with the <code>security_events</code> scope (or use <code>repo</code> which includes it).</span>
+      </div>
+      <a href="https://github.com/settings/tokens" target="_blank" rel="noopener" style="white-space:nowrap">Update token →</a>
+    </div>`;
   if (vulnError)
     return `<div class="detail-err">${esc(vulnError)}</div>`;
   if (!vulns.length)
-    return '<div class="detail-empty">No open vulnerabilities detected</div>';
+    return '<div class="detail-empty" style="color:var(--green);font-weight:500">✓ No open vulnerabilities detected</div>';
 
   return vulns.map(v => {
     const sc = SEV_CLASS[v.severity] || 'sev-low';
+    const steps = fixSteps(v);
     return `<div class="detail-vuln">
       <div class="vuln-top">
         <span class="vuln-pkg">${esc(v.pkg)}</span>
         <span class="sev ${sc}">${esc(v.severity)}</span>
+        ${v.ecosystem ? `<span class="tm-lbl" style="font-size:10px">${esc(v.ecosystem)}</span>` : ''}
       </div>
       <div class="vuln-summary">${esc(v.summary)}</div>
-      <div class="vuln-range">Affected: ${esc(v.range)}${v.fixed ? ` → Fix: <strong>${esc(v.fixed)}</strong>` : ' <em>(no patch yet)</em>'}</div>
+      <div class="vuln-range">Affected: <code>${esc(v.range)}</code>${v.fixed ? ` → Fix: <strong>${esc(v.fixed)}</strong>` : ' <em style="color:var(--red)">(no patch available yet)</em>'}</div>
       <div class="remed-box">
-        <div class="remed-title">Exact Remediation Steps</div>
-        <div class="remed-steps">${esc(fixSteps(v))}</div>
+        <div class="remed-title">Remediation Steps</div>
+        <div class="remed-steps">${esc(steps)}</div>
       </div>
-      <a class="remed-link" href="${esc(v.url)}" target="_blank" rel="noopener">Read full advisory →</a>
+      <a class="remed-link" href="${esc(v.url)}" target="_blank" rel="noopener">View full advisory on GitHub →</a>
     </div>`;
   }).join('');
 }
@@ -653,12 +720,13 @@ window.openDetail = async function(idx) {
   const repo = state.repos.find(r => r.fullName === d.fullName);
   if (!repo) return;
 
+  const panel = document.getElementById('detailPanel');
   document.getElementById('detailRepoNm').textContent    = repo.fullName;
-  document.getElementById('detailStatusDot').className   = 'r-dot ' + tileColor(d);
   document.getElementById('detailCommitsBody').innerHTML = '<div class="detail-empty"><span class="spinner"></span> Loading commits…</div>';
   document.getElementById('detailVulnsBody').innerHTML   = '<div class="detail-empty"><span class="spinner"></span> Loading vulnerabilities…</div>';
+  panel.className = 'detail-panel rag-' + tileColor(d);
   document.getElementById('detailOverlay').classList.add('open');
-  document.getElementById('detailPanel').classList.add('open');
+  panel.classList.add('open');
   document.body.style.overflow = 'hidden';
 
   // Fetch fresh commits and fresh vulns in parallel (avoids stale cached scope errors)
@@ -690,15 +758,16 @@ window.openDetail = async function(idx) {
   else if (freshVd?.error)         { vulnError = freshVd.error; }
   else if (Array.isArray(freshVd)) { vulns = freshVd; }
 
-  // Update tile color in-place based on fresh vuln data
+  // Update panel RAG color based on fresh vuln data
   const freshColor = missingScope || vulns.length ? 'amber' : vulnError ? 'red' : 'green';
-  document.getElementById('detailStatusDot').className = 'r-dot ' + freshColor;
+  panel.className = 'detail-panel open rag-' + freshColor;
   document.getElementById('detailVulnsBody').innerHTML = buildVulnsHtml(vulns, missingScope, vulnError);
 };
 
 window.closeDetail = function() {
   document.getElementById('detailOverlay').classList.remove('open');
-  document.getElementById('detailPanel').classList.remove('open');
+  const panel = document.getElementById('detailPanel');
+  panel.classList.remove('open');
   document.body.style.overflow = '';
 };
 
