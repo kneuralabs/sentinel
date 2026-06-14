@@ -177,23 +177,25 @@ header {
   color: var(--t2); transition: background 0.12s, color 0.12s; flex-shrink: 0; padding: 0;
 }
 .theme-btn:hover { background: var(--bg); color: var(--t1); }
-.access-wrap { position: relative; }
+/* Title + access dot. The dot is no longer a boxed button — it sits over the
+   "i" in "Sentinel", acting as the letter's tittle. */
+.hd-titlewrap { position: relative; display: inline-block; line-height: 1; }
+.access-wrap { position: absolute; top: -4px; left: 60px; }
 .access-btn {
-  width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface);
+  border: none; background: none; padding: 6px; margin: 0;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background 0.12s, border-color 0.12s; flex-shrink: 0; padding: 0;
+  line-height: 0; -webkit-tap-highlight-color: transparent;
 }
-.access-btn:hover { background: var(--bg); }
-.access-btn.open { border-color: var(--blue); }
+.access-btn:hover { background: none; }
 .access-dot-glyph {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--t3); transition: background 0.15s;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--t1); transition: background 0.15s, box-shadow 0.15s;
 }
 .access-btn:hover .access-dot-glyph,
-.access-btn.open  .access-dot-glyph { background: var(--blue); }
-.access-dot-glyph.live { background: #22c55e !important; box-shadow: 0 0 0 2px rgba(34,197,94,0.18); }
+.access-btn.open  .access-dot-glyph { background: var(--blue); box-shadow: 0 0 0 3px rgba(24,67,184,0.16); }
+.access-dot-glyph.live { background: #22c55e !important; box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
 .access-popover {
-  display: none; position: absolute; top: calc(100% + 10px); left: 0;
+  display: none; position: absolute; top: calc(100% + 14px); left: -60px;
   width: 400px; background: var(--surface); border: 1px solid var(--border);
   padding: 20px 22px; z-index: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.07);
 }
@@ -811,7 +813,7 @@ html[data-theme="dark"] .live-pill { color: #4ade80; border-color: rgba(74,222,1
   .repo-tiles { grid-template-columns: repeat(3, 1fr); }
   .hd-sub { display: none; }
   .hd-divider { display: none; }
-  .access-popover { width: min(400px, calc(100vw - 36px)); left: -8px; }
+  .access-popover { width: min(400px, calc(100vw - 36px)); left: -60px; }
   .detail-panel { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: 88vh; }
 }
 
@@ -829,6 +831,8 @@ html[data-theme="dark"] .live-pill { color: #4ade80; border-color: rgba(74,222,1
   .hd-sub { display: none; }
   .hd-divider { display: none; }
   .hd-title { font-size: 22px; }
+  /* Re-anchor the dot over the "i" for the smaller mobile title. */
+  .access-wrap { top: -5px; left: 44px; }
   .hd-logo { width: 36px; height: 36px; }
   .logo-sq { width: 34px; height: 34px; }
   .status-pill { padding: 4px 8px; font-size: 9px; }
@@ -843,7 +847,9 @@ html[data-theme="dark"] .live-pill { color: #4ade80; border-color: rgba(74,222,1
   .repo-tiles { grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
   .dash-controls { flex-wrap: wrap; }
-  .access-popover { width: calc(100vw - 24px); left: 50%; transform: translateX(-50%); }
+  /* Anchor the popover to the viewport on phones so the tiny dot anchor
+     doesn't push it off-screen. */
+  .access-popover { position: fixed; top: 62px; left: 12px; right: 12px; width: auto; transform: none; }
   .detail-panel { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: 90vh; }
   .detail-head { padding: 14px 16px; }
   .detail-sec { padding: 14px 16px; }
