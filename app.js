@@ -616,7 +616,8 @@ document.getElementById('manualRefreshBtn').addEventListener('click', async () =
 function persist() {
   if (state.token) localStorage.setItem(SK.TOKEN, state.token);
   localStorage.setItem(SK.META, JSON.stringify({
-    repos: state.repos, fetchMap: state.fetchMap, lastSync: state.lastSync
+    repos: state.repos, fetchMap: state.fetchMap, lastSync: state.lastSync,
+    hasSecurityScope: state.hasSecurityScope
   }));
 }
 
@@ -626,7 +627,7 @@ function restore() {
   if (!tok || !meta) return false;
   try {
     const p = JSON.parse(meta);
-    state = { token: tok, repos: p.repos || [], fetchMap: p.fetchMap || {}, lastSync: p.lastSync || null };
+    state = { token: tok, repos: p.repos || [], fetchMap: p.fetchMap || {}, lastSync: p.lastSync || null, hasSecurityScope: p.hasSecurityScope ?? null };
     tokenInput.value = tok;
     if (!state.repos.length) return false;
 
