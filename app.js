@@ -1,0 +1,719 @@
+// ── CONSTANTS ────────────────────────────────────────────────────────────────
+const SK = { TOKEN: 'sentinel_token', META: 'sentinel_meta' };
+const SCAN_BATCH = 3;
+const INIT_BATCH = 5;
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let state = { token: null, repos: [], fetchMap: {}, lastSync: null };
+
+// ── DOM REFS ─────────────────────────────────────────────────────────────────
+const tokenInput  = document.getElementById('githubToken');
+const connectBtn  = document.getElementById('connectBtn');
+const clearBtn    = document.getElementById('clearStorageBtn');
+const dashboard   = document.getElementById('dashboardArea');
+const initMsg     = document.getElementById('initialMessage');
+const grid        = document.getElementById('repoGridContainer');
+const repoCountEl = document.getElementById('repoCount');
+const changesEl   = document.getElementById('totalChanges');
+const vulnsEl     = document.getElementById('totalVulns');
+const syncEl      = document.getElementById('lastSyncTime');
+const sDot        = document.getElementById('sDot');
+const sText       = document.getElementById('sText');
+
+// ── SCAN OVERLAY ─────────────────────────────────────────────────────────────
+const overlay  = document.getElementById('scanOverlay');
+const terminal = document.getElementById('scanTerminal');
+const progBar  = document.getElementById('scanProgBar');
+
+function addLine(msg, cls = '') {
+  const prev = terminal.querySelector('.scan-cursor');
+  if (prev) prev.remove();
+
+  const lineClass = cls === 'hl' ? 'cmd' : cls === 'ok' ? 'ok' : cls === 'err' ? 'err' : 'out';
+  const prefix    = cls === 'hl' ? '$' : cls === 'ok' ? '[ok]' : cls === 'err' ? '[err]' : '›';
+
+  const el = document.createElement('div');
+  el.className = `scan-line ${lineClass}`;
+  el.innerHTML =
+    `<span class="scan-prefix">${prefix}</span>` +
+    `<span class="scan-msg">${msg}<span class="scan-cursor"></span></span>`;
+  terminal.appendChild(el);
+
+  const all = terminal.querySelectorAll('.scan-line');
+  if (all.length > 14) all[0].remove();
+}
+
+function setProgress(pct) { progBar.style.width = pct + '%'; }
+
+function showOverlay() {
+  terminal.innerHTML = '';
+  setProgress(0);
+  dashboard.style.display = 'block';
+  initMsg.style.display   = 'none';
+  overlay.style.opacity   = '1';
+  overlay.style.display   = 'flex';
+  overlay.classList.remove('exiting');
+}
+
+function hideOverlay() {
+  return new Promise(res => {
+    overlay.classList.add('exiting');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      overlay.classList.remove('exiting');
+      res();
+    }, 580);
+  });
+}
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+}
+
+// ── GITHUB API ────────────────────────────────────────────────────────────────
+async function apiFetch(url, token, opts = {}) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      ...(opts.headers || {})
+    }
+  });
+  if (res.status === 403 && res.headers.get('X-RateLimit-Remaining') === '0')
+    throw new Error('Rate limit exceeded. Please wait a moment.');
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`GitHub API ${res.status}: ${txt.slice(0, 120)}`);
+  }
+  return res;
+}
+
+async function getAllRepos(token) {
+  let page = 1, all = [], more = true;
+  while (more) {
+    const res  = await apiFetch(`https://api.github.com/user/repos?per_page=100&page=${page}&sort=full_name`, token);
+    const data = await res.json();
+    if (!data.length) break;
+    all.push(...data);
+    more = (res.headers.get('Link') || '').includes('rel="next"');
+    page++;
+  }
+  return all.map(r => ({
+    fullName: r.full_name, owner: r.owner.login,
+    name: r.name, branch: r.default_branch
+  }));
+}
+
+async function getLatestDate(token, owner, repo, branch) {
+  try {
+    const res  = await apiFetch(`https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=1`, token);
+    const data = await res.json();
+    return data?.[0]?.commit?.committer?.date || new Date().toISOString();
+  } catch { return new Date().toISOString(); }
+}
+
+async function getCommitsSince(token, owner, repo, branch, since) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=40&since=${encodeURIComponent(since)}`;
+  const res  = await apiFetch(url, token);
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map(c => ({
+    sha:     c.sha,
+    message: c.commit.message.split('\n')[0],
+    author:  c.commit.author?.name || c.author?.login || 'unknown',
+    url:     c.html_url
+  }));
+}
+
+async function getVulns(token, owner, repo) {
+  try {
+    const res  = await apiFetch(`https://api.github.com/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=50`, token);
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(a => ({
+      id:        a.number,
+      summary:   a.security_advisory?.summary || 'Unknown vulnerability',
+      severity:  a.security_advisory?.severity || 'unknown',
+      pkg:       a.security_vulnerability?.package?.name || 'unknown',
+      range:     a.security_vulnerability?.vulnerable_version_range || 'unknown',
+      fixed:     a.security_vulnerability?.first_patched_version?.identifier || null,
+      url:       a.html_url,
+      ecosystem: a.security_vulnerability?.package?.ecosystem || ''
+    }));
+  } catch(err) {
+    if (/403|404|security_events/.test(err.message)) return { missingScope: true };
+    return { error: err.message };
+  }
+}
+
+// ── REMEDIATION ───────────────────────────────────────────────────────────────
+function fixSteps(v) {
+  const eco = v.ecosystem?.toLowerCase() || '';
+  let cmd;
+  if (eco === 'npm' || eco.includes('npm'))
+    cmd = `npm update ${v.pkg}\nnpm audit fix\n# Or pin version:\nnpm install ${v.pkg}@${v.fixed || 'latest'}`;
+  else if (eco === 'pip' || eco.includes('pip'))
+    cmd = `pip install --upgrade ${v.pkg}\n# Or pin:\npip install ${v.pkg}==${v.fixed || 'latest'}`;
+  else if (eco.includes('maven'))
+    cmd = `Update pom.xml <version> for ${v.pkg} to ${v.fixed || 'latest'}\nmvn versions:use-latest-versions -Dincludes=${v.pkg}`;
+  else if (eco.includes('go'))
+    cmd = `go get -u ${v.pkg}\ngo mod tidy`;
+  else
+    cmd = `Upgrade ${v.pkg} to ${v.fixed || 'patched version'} via your package manager`;
+
+  let out = `1. Locate ${v.pkg} in your dependency manifest\n2. Run:\n   ${cmd.replace(/\n/g, '\n   ')}\n3. Run your test suite\n4. Commit and push`;
+  if (!v.fixed) out += `\n\n# No patch available yet — check advisory for workarounds`;
+  return out;
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, m =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function tileColor(d) {
+  if (d.hasError) return 'red';
+  if ((d.vulns || []).length || d.missingScope) return 'amber';
+  return 'green';
+}
+
+function pluralize(n, word) { return `${n} ${word}${n !== 1 ? 's' : ''}`; }
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── SHARED VULN BATCH SCAN ───────────────────────────────────────────────────
+async function batchVulnScan(token, repos, onProgress) {
+  const results = [];
+  for (let i = 0; i < repos.length; i += SCAN_BATCH) {
+    const batch = repos.slice(i, i + SCAN_BATCH);
+    const chunk = await Promise.all(batch.map(async repo => {
+      const { fullName, owner, name } = repo;
+      let vulns = [], vulnError = null, missingScope = false;
+      const vd = await getVulns(token, owner, name);
+      if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
+      else if (vd?.error)         { vulnError = vd.error; }
+      else if (Array.isArray(vd)) vulns = vd;
+      return { fullName, commits: [], vulns, commitError: null, vulnError, missingScope,
+               hasError: !!(vulnError && !missingScope) };
+    }));
+    chunk.forEach(r => results.push(r));
+    if (onProgress) onProgress(batch, i);
+  }
+  return results;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderGrid(details) {
+  if (!details.length) {
+    grid.innerHTML = `<div class="empty-card" style="border:none; grid-column:1/-1">
+      <div class="empty-title">No repositories found</div></div>`;
+    return;
+  }
+  window._scanDetails = details;
+  grid.innerHTML = details.map((d, i) => {
+    const repo = state.repos.find(r => r.fullName === d.fullName);
+    if (!repo) return '';
+    const vulns = d.vulns || [];
+    const color = tileColor(d);
+    const [owner, name] = repo.fullName.includes('/')
+      ? repo.fullName.split('/')
+      : [repo.fullName, repo.fullName];
+
+    const stats = [];
+    if (d.commits.length)                     stats.push({ t: pluralize(d.commits.length, 'commit'), c: 'tile-stat-neutral' });
+    if (vulns.length)                         stats.push({ t: pluralize(vulns.length, 'vuln'), c: 'tile-stat-danger' });
+    if (d.missingScope)                       stats.push({ t: 'missing scope', c: 'tile-stat-err' });
+    if (d.hasError && !d.missingScope)        stats.push({ t: 'scan error', c: 'tile-stat-err' });
+    if (!stats.length)                        stats.push({ t: 'all clear', c: 'tile-stat-ok' });
+
+    return `<div class="repo-tile" onclick="openDetail(${i})">
+      <div class="tile-fill ${color}"></div>
+      <div class="tile-status ${color}"></div>
+      <div class="tile-owner">${esc(owner)}/</div>
+      <div class="tile-repo">${esc(name)}</div>
+      <div class="tile-hover">
+        <div class="tile-hover-title">${esc(repo.fullName)}</div>
+        <div class="tile-hover-stats">
+          ${stats.map(s => `<span class="${s.c}">${s.t}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  finalizeMatrix();
+}
+
+function finalizeMatrix() {
+  document.querySelectorAll('.repo-tile .tile-fill').forEach(f => f.classList.add('show'));
+}
+
+function renderBaseline() {
+  repoCountEl.textContent = state.repos.length;
+  changesEl.textContent   = '0';
+  vulnsEl.textContent     = '0';
+  vulnsEl.className       = 'stat-num';
+  syncEl.textContent      = state.lastSync ? fmtTime(state.lastSync) : '—';
+  grid.innerHTML = `<div class="empty-card" style="border:none; padding:32px 60px; grid-column:1/-1">
+    <div class="empty-sub">Click Rescan to detect vulnerabilities across all repositories</div></div>`;
+}
+
+function updateStatsAfterScan(totalCommits, totalVuln) {
+  changesEl.textContent = totalCommits;
+  vulnsEl.textContent   = totalVuln;
+  vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
+  syncEl.textContent    = fmtTime(new Date().toISOString());
+}
+
+function setConnected(n) {
+  sDot.classList.add('live');
+  sText.textContent = `${n} repos`;
+}
+
+// ── CORE SCAN ─────────────────────────────────────────────────────────────────
+async function runScan() {
+  const token   = state.token;
+  const repos   = [...state.repos];
+  const oldMap  = { ...state.fetchMap };
+  const newMap  = { ...oldMap };
+  const results = [];
+
+  for (let i = 0; i < repos.length; i += SCAN_BATCH) {
+    const batch = repos.slice(i, i + SCAN_BATCH);
+    const chunk = await Promise.all(batch.map(async repo => {
+      const { fullName, owner, name, branch } = repo;
+      let commits = [], commitError = null;
+      try {
+        if (oldMap[fullName]) {
+          commits = await getCommitsSince(token, owner, name, branch, oldMap[fullName]);
+        }
+        const d = await getLatestDate(token, owner, name, branch);
+        newMap[fullName] = commits.length && commits[0].date ? commits[0].date : d;
+      } catch(e) {
+        commitError = e.message;
+        newMap[fullName] = oldMap[fullName] || new Date().toISOString();
+      }
+
+      let vulns = [], vulnError = null, missingScope = false;
+      const vd = await getVulns(token, owner, name);
+      if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
+      else if (vd?.error)         { vulnError = vd.error; }
+      else if (Array.isArray(vd)) vulns = vd;
+
+      return { fullName, commits, vulns, commitError, vulnError, missingScope,
+               hasError: !!(commitError || (vulnError && !missingScope)) };
+    }));
+    chunk.forEach(r => results.push(r));
+  }
+
+  state.fetchMap = newMap;
+  state.lastSync = new Date().toISOString();
+  persist();
+
+  const totalCommits = results.reduce((a, r) => a + r.commits.length, 0);
+  const totalVuln    = results.reduce((a, r) => a + r.vulns.length, 0);
+
+  updateStatsAfterScan(totalCommits, totalVuln);
+  renderGrid(results);
+  return { totalVuln, totalCommits, results };
+}
+
+// ── FULL INIT + ANIMATED SCAN ─────────────────────────────────────────────────
+async function fullInit(token) {
+  showOverlay();
+  try {
+    await wait(180); addLine('Initializing Sentinel', 'hl');
+    await wait(260); addLine('Connecting to GitHub API…'); setProgress(5);
+    await wait(350); addLine(`Authenticating token ${token.slice(0, 8)}…`, 'hl');
+
+    let repos;
+    try { repos = await getAllRepos(token); }
+    catch(err) {
+      addLine('Authentication failed — ' + err.message, 'err');
+      await wait(1600); await hideOverlay();
+      toast(err.message, true); return;
+    }
+
+    if (!repos.length) {
+      addLine('No repositories found', 'err');
+      await wait(1200); await hideOverlay();
+      toast('No repositories found', true); return;
+    }
+
+    addLine(`Token verified — ${repos.length} repositories found`, 'ok'); setProgress(18);
+    await wait(180);
+    addLine('Caching commit baselines…', 'hl'); setProgress(22);
+
+    const dateMap = {};
+    for (let i = 0; i < repos.length; i += INIT_BATCH) {
+      const batch = repos.slice(i, i + INIT_BATCH);
+      await Promise.all(batch.map(async r => {
+        dateMap[r.fullName] = await getLatestDate(token, r.owner, r.name, r.branch);
+      }));
+      batch.forEach(r => addLine(`Index  ${r.fullName}`));
+      setProgress(22 + Math.round(((i + INIT_BATCH) / repos.length) * 28));
+      await wait(50);
+    }
+
+    state.repos    = repos;
+    state.fetchMap = dateMap;
+    state.token    = token;
+    state.lastSync = new Date().toISOString();
+    persist();
+
+    renderBaseline();
+    repoCountEl.textContent = repos.length;
+    setConnected(repos.length);
+
+    addLine(`Baseline cached — scanning for vulnerabilities`, 'hl'); setProgress(52);
+    await wait(200);
+
+    const results = await batchVulnScan(token, repos, (batch, i) => {
+      batch.forEach(r => addLine(`Scan   ${r.fullName}`));
+      setProgress(52 + Math.round(((i + SCAN_BATCH) / repos.length) * 44));
+    });
+
+    const totalVuln = results.reduce((a, r) => a + r.vulns.length, 0);
+    setProgress(100);
+    await wait(220);
+    addLine(
+      totalVuln > 0
+        ? `Scan complete — ${pluralize(totalVuln, 'vulnerability')} found`
+        : `Scan complete — no vulnerabilities detected`,
+      totalVuln > 0 ? 'hl' : 'ok'
+    );
+    await wait(900);
+    await hideOverlay();
+
+    updateStatsAfterScan(0, totalVuln);
+    renderGrid(results);
+
+    toast(totalVuln > 0
+      ? `${pluralize(totalVuln, 'vulnerability')} found — remediation plans embedded below`
+      : 'Scan complete — all repositories are secure');
+
+  } catch(err) {
+    addLine('Unexpected error: ' + err.message, 'err');
+    await wait(1600); await hideOverlay();
+    toast(err.message, true);
+  }
+}
+
+// ── RESCAN ────────────────────────────────────────────────────────────────────
+document.getElementById('manualRefreshBtn').addEventListener('click', async () => {
+  if (!state.token || !state.repos.length) { toast('Connect first', true); return; }
+  showOverlay();
+  addLine('Initiating rescan', 'hl');
+  await wait(200);
+  addLine(`Loading ${state.repos.length} repositories from cache`); setProgress(8);
+  await wait(240);
+  addLine('Scanning for new commits and vulnerabilities…', 'hl'); setProgress(14);
+  await wait(200);
+
+  const result = await runScan();
+  setProgress(100);
+  await wait(200);
+  addLine(
+    result.totalVuln > 0
+      ? `Rescan complete — ${pluralize(result.totalVuln, 'vulnerability')} found`
+      : `Rescan complete — no vulnerabilities detected`,
+    result.totalVuln > 0 ? 'hl' : 'ok'
+  );
+  await wait(820);
+  await hideOverlay();
+  finalizeMatrix();
+  toast(result.totalVuln > 0 ? `${pluralize(result.totalVuln, 'vulnerability')} found` : 'All clear');
+});
+
+// ── PERSIST & RESTORE ─────────────────────────────────────────────────────────
+function persist() {
+  if (state.token) localStorage.setItem(SK.TOKEN, state.token);
+  localStorage.setItem(SK.META, JSON.stringify({
+    repos: state.repos, fetchMap: state.fetchMap, lastSync: state.lastSync
+  }));
+}
+
+function restore() {
+  const tok  = localStorage.getItem(SK.TOKEN);
+  const meta = localStorage.getItem(SK.META);
+  if (!tok || !meta) return false;
+  try {
+    const p = JSON.parse(meta);
+    state = { token: tok, repos: p.repos || [], fetchMap: p.fetchMap || {}, lastSync: p.lastSync || null };
+    tokenInput.value = tok;
+    if (!state.repos.length) return false;
+
+    dashboard.style.display = 'block';
+    initMsg.style.display   = 'none';
+    renderBaseline();
+    setConnected(state.repos.length);
+
+    setTimeout(async () => {
+      showOverlay();
+      addLine('Resuming session', 'hl');
+      await wait(200);
+      addLine(`Loaded ${state.repos.length} repositories from cache`); setProgress(12);
+      await wait(280);
+      addLine('Refreshing vulnerability scan…', 'hl'); setProgress(18);
+      await wait(200);
+      const result = await runScan();
+      setProgress(100);
+      await wait(180);
+      addLine(
+        result.totalVuln > 0
+          ? `${pluralize(result.totalVuln, 'vulnerability')} detected`
+          : 'No vulnerabilities detected',
+        result.totalVuln > 0 ? 'hl' : 'ok'
+      );
+      await wait(780);
+      await hideOverlay();
+      finalizeMatrix();
+    }, 400);
+    return true;
+  } catch { return false; }
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────────────────
+connectBtn.addEventListener('click', async () => {
+  const tok = tokenInput.value.trim();
+  if (!tok) { toast('Enter a GitHub personal access token', true); return; }
+  await fullInit(tok);
+});
+
+tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') connectBtn.click(); });
+
+clearBtn.addEventListener('click', () => {
+  localStorage.removeItem(SK.TOKEN);
+  localStorage.removeItem(SK.META);
+  state = { token: null, repos: [], fetchMap: {}, lastSync: null };
+  tokenInput.value = '';
+  dashboard.style.display = 'none';
+  initMsg.style.display   = 'block';
+  initMsg.innerHTML = `<div class="empty-title">Session cleared</div><div class="empty-sub">Enter a new token to reconnect</div>`;
+  sDot.classList.remove('live');
+  sText.textContent = 'Not connected';
+  toast('Session cleared');
+});
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+if (!restore()) {
+  dashboard.style.display = 'none';
+  initMsg.style.display   = 'block';
+}
+
+// ── THEME TOGGLE ──────────────────────────────────────────────────────────────
+const ICON_MOON = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M10.5 8.5a5.5 5.5 0 1 1-6-6 4 4 0 0 0 6 6z"/></svg>';
+const ICON_SUN  = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="2"/><line x1="6.5" y1="1" x2="6.5" y2="2.5"/><line x1="6.5" y1="10.5" x2="6.5" y2="12"/><line x1="1" y1="6.5" x2="2.5" y2="6.5"/><line x1="10.5" y1="6.5" x2="12" y2="6.5"/><line x1="2.8" y1="2.8" x2="3.8" y2="3.8"/><line x1="9.2" y1="9.2" x2="10.2" y2="10.2"/><line x1="10.2" y1="2.8" x2="9.2" y2="3.8"/><line x1="3.8" y1="9.2" x2="2.8" y2="10.2"/></svg>';
+
+let activeTheme = localStorage.getItem('sentinel_theme') || 'light';
+const themeBtn  = document.getElementById('themeBtn');
+
+function applyTheme(t) {
+  activeTheme = t;
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('sentinel_theme', t);
+  if (themeBtn) themeBtn.innerHTML = t === 'dark' ? ICON_SUN : ICON_MOON;
+}
+applyTheme(activeTheme);
+themeBtn.addEventListener('click', () => applyTheme(activeTheme === 'dark' ? 'light' : 'dark'));
+
+// ── ACCESS POPOVER ────────────────────────────────────────────────────────────
+const accessDotBtn  = document.getElementById('accessDotBtn');
+const accessPopover = document.getElementById('accessPopover');
+const accessGlyph   = document.getElementById('accessGlyph');
+
+function syncGlyph() {
+  accessGlyph.classList.toggle('live', !!(state.token && state.repos.length));
+}
+
+accessDotBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const opening = !accessPopover.classList.contains('open');
+  accessPopover.classList.toggle('open', opening);
+  accessDotBtn.classList.toggle('open', opening);
+  if (opening) tokenInput.focus();
+});
+
+document.addEventListener('click', e => {
+  if (!accessPopover.contains(e.target) && e.target !== accessDotBtn) {
+    accessPopover.classList.remove('open');
+    accessDotBtn.classList.remove('open');
+  }
+});
+
+connectBtn.addEventListener('click', () => {
+  setTimeout(() => {
+    accessPopover.classList.remove('open');
+    accessDotBtn.classList.remove('open');
+    syncGlyph();
+  }, 500);
+});
+clearBtn.addEventListener('click', () => setTimeout(syncGlyph, 50));
+setTimeout(syncGlyph, 800);
+
+// ── DETAIL PANEL ─────────────────────────────────────────────────────────────
+const SEV_CLASS = {
+  critical: 'sev-critical',
+  high:     'sev-high',
+  medium:   'sev-medium',
+  low:      'sev-low'
+};
+
+function buildCommitsHtml(commits) {
+  if (!commits.length) return '<div class="detail-empty">No commits found</div>';
+  return commits.map(ci => {
+    const dt = ci.date
+      ? new Date(ci.date).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
+    return `<div class="detail-commit">
+      <div class="commit-txt">${esc(ci.message)}</div>
+      <div class="commit-meta">
+        <span>${esc(ci.author)}</span>
+        ${dt ? `<span>${esc(dt)}</span>` : ''}
+        <a href="${esc(ci.url)}" target="_blank" rel="noopener">view →</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildVulnsHtml(d) {
+  const vulns = d.vulns || [];
+  if (d.missingScope)
+    return '<div class="detail-err">Missing security_events scope — <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">update token →</a></div>';
+  if (d.vulnError)
+    return `<div class="detail-err">${esc(d.vulnError)}</div>`;
+  if (!vulns.length)
+    return '<div class="detail-empty">No open vulnerabilities detected</div>';
+
+  return vulns.map(v => {
+    const sc = SEV_CLASS[v.severity] || 'sev-low';
+    return `<div class="detail-vuln">
+      <div class="vuln-top">
+        <span class="vuln-pkg">${esc(v.pkg)}</span>
+        <span class="sev ${sc}">${esc(v.severity)}</span>
+      </div>
+      <div class="vuln-summary">${esc(v.summary)}</div>
+      <div class="vuln-range">Affected: ${esc(v.range)}${v.fixed ? ` → Fix: <strong>${esc(v.fixed)}</strong>` : ' <em>(no patch yet)</em>'}</div>
+      <div class="remed-box">
+        <div class="remed-title">Exact Remediation Steps</div>
+        <div class="remed-steps">${esc(fixSteps(v))}</div>
+      </div>
+      <a class="remed-link" href="${esc(v.url)}" target="_blank" rel="noopener">Read full advisory →</a>
+    </div>`;
+  }).join('');
+}
+
+window.openDetail = async function(idx) {
+  const details = window._scanDetails;
+  if (!details || !details[idx]) return;
+  const d    = details[idx];
+  const repo = state.repos.find(r => r.fullName === d.fullName);
+  if (!repo) return;
+
+  const color = tileColor(d);
+  document.getElementById('detailRepoNm').textContent    = repo.fullName;
+  document.getElementById('detailStatusDot').className   = 'r-dot ' + color;
+  document.getElementById('detailCommitsBody').innerHTML = '<div class="detail-empty"><span class="spinner"></span> Loading commits…</div>';
+  document.getElementById('detailVulnsBody').innerHTML   = '<div class="detail-empty"><span class="spinner"></span> Loading vulnerabilities…</div>';
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const res  = await apiFetch(
+      `https://api.github.com/repos/${repo.owner}/${repo.name}/commits?sha=${repo.branch}&per_page=30`,
+      state.token
+    );
+    const data = await res.json();
+    const commits = Array.isArray(data) ? data.map(c => ({
+      sha:     c.sha,
+      message: c.commit.message.split('\n')[0],
+      author:  c.commit.author?.name || c.author?.login || 'unknown',
+      date:    c.commit.author?.date || c.commit.committer?.date,
+      url:     c.html_url
+    })) : [];
+    document.getElementById('detailCommitsBody').innerHTML = buildCommitsHtml(commits);
+  } catch(err) {
+    document.getElementById('detailCommitsBody').innerHTML = `<div class="detail-err">${esc(err.message)}</div>`;
+  }
+
+  document.getElementById('detailVulnsBody').innerHTML = buildVulnsHtml(d);
+};
+
+window.closeDetail = function() {
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailPanel').classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+// ── MATRIX ANIMATION ─────────────────────────────────────────────────────────
+const MTX_PAL = [
+  [24,  67, 184],
+  [24, 111,  61],
+  [184,  37,  24],
+  [154,  82,   0],
+  [109,  63, 160],
+  [ 10, 117, 104],
+  [192,  90,   0],
+  [ 43, 108, 176],
+];
+const MTX_CHARS = '01ABCDEF<>/|@#$%*!=?01';
+let mtxActive = false;
+let mtxCvs    = [];
+
+function stopMatrix() { mtxActive = false; mtxCvs = []; }
+
+function startMatrix() {
+  stopMatrix();
+  document.querySelectorAll('.tile-canvas').forEach((cv, i) => {
+    const fz  = 9;
+    cv.width  = cv.offsetWidth  || cv.parentElement?.offsetWidth  || 160;
+    cv.height = cv.offsetHeight || cv.parentElement?.offsetHeight || 160;
+    if (!cv.width || !cv.height) return;
+    const cols  = Math.max(1, Math.floor(cv.width / fz));
+    const drops = Array.from({ length: cols }, () => Math.random() * -(cv.height / fz) * 1.5);
+    const ctx   = cv.getContext('2d');
+    const rgb   = MTX_PAL[i % MTX_PAL.length];
+    const dark  = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.fillStyle = dark ? '#161614' : '#fafaf8';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    mtxCvs.push({ cv, ctx, drops, rgb, fz });
+  });
+  if (!mtxCvs.length) return;
+  mtxActive = true;
+  (function loop() {
+    if (!mtxActive) return;
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    mtxCvs.forEach(({ cv, ctx, drops, rgb, fz }) => {
+      if (!cv.isConnected) return;
+      ctx.fillStyle = dark ? 'rgba(22,22,20,0.17)' : 'rgba(250,250,248,0.17)';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.font = fz + 'px "JetBrains Mono",monospace';
+      const [r, g, b] = rgb;
+      for (let i = 0; i < drops.length; i++) {
+        const x = i * fz, y = Math.floor(drops[i]) * fz;
+        ctx.fillStyle = `rgba(${r},${g},${b},0.78)`;
+        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y);
+        ctx.fillStyle = `rgba(${r},${g},${b},0.28)`;
+        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y - fz);
+        ctx.fillStyle = `rgba(${r},${g},${b},0.10)`;
+        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y - fz * 2);
+        drops[i] += 0.28;
+        if (drops[i] * fz > cv.height + fz * 3 && Math.random() > 0.965) {
+          drops[i] = Math.random() * -18;
+        }
+      }
+    });
+    requestAnimationFrame(loop);
+  })();
+}
