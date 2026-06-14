@@ -582,28 +582,40 @@ header {
 /* ── REPO TILES ──────────────────────────────── */
 .repo-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  background: var(--border); border: 1px solid var(--border); gap: 1px;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 14px;
 }
 .repo-tile {
   background: var(--surface); aspect-ratio: 1 / 1;
   position: relative; cursor: pointer; overflow: hidden;
-  display: flex; flex-direction: column; justify-content: space-between; padding: 14px 16px;
-  transition: background 0.1s;
+  display: flex; flex-direction: column; justify-content: space-between; padding: 16px 17px;
+  border: 1px solid var(--border-lt);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: transform 0.18s cubic-bezier(.2,.8,.2,1), box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.repo-tile:hover { background: #faf9f7; }
-html[data-theme="dark"] .repo-tile:hover { background: #1a1a18; }
+.repo-tile::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: var(--border); opacity: 0.9; transition: opacity 0.18s ease;
+}
+.repo-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.12);
+  border-color: var(--border);
+}
+html[data-theme="dark"] .repo-tile { box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+html[data-theme="dark"] .repo-tile:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.5); }
 
 /* identity block */
 .tile-id { position: relative; z-index: 1; }
-.tile-owner { font-family: var(--mono); font-size: 9px; color: var(--t3); margin-bottom: 2px; }
-.tile-repo  { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--t1); line-height: 1.3; word-break: break-word; }
+.tile-owner { font-family: var(--mono); font-size: 9.5px; color: var(--t3); margin-bottom: 3px; letter-spacing: 0.2px; }
+.tile-repo  { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--t1); line-height: 1.3; word-break: break-word; }
 
 /* metrics block (always visible) */
-.tile-metrics { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 5px; }
+.tile-metrics { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 7px; }
 .tile-metric  { display: flex; align-items: baseline; gap: 5px; }
-.tm-num { font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--t1); line-height: 1; }
-.tm-lbl { font-family: var(--mono); font-size: 9px; color: var(--t3); }
+.tm-num { font-family: var(--mono); font-size: 17px; font-weight: 600; color: var(--t1); line-height: 1; }
+.tm-lbl { font-family: var(--mono); font-size: 9px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.5px; }
 .tm-sec { align-items: center; }
 .tm-sec-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .tm-sec-dot.green { background: var(--green); box-shadow: 0 0 0 2px rgba(24,111,61,0.18); }
@@ -712,31 +724,32 @@ html[data-density="compact"] .vuln-row    { padding: 8px 0; }
 
 /* ── TILE RAG COLORING ───────────────────────────── */
 .repo-tile.tile-green {
-  background: rgba(24,111,61,0.13);
-  border-top: 3px solid var(--green);
+  background: linear-gradient(160deg, rgba(24,111,61,0.10), rgba(24,111,61,0.02));
 }
 .repo-tile.tile-amber {
-  background: rgba(154,82,0,0.13);
-  border-top: 3px solid var(--amber);
+  background: linear-gradient(160deg, rgba(154,82,0,0.10), rgba(154,82,0,0.02));
 }
 .repo-tile.tile-red {
-  background: rgba(184,37,24,0.13);
-  border-top: 3px solid var(--red);
+  background: linear-gradient(160deg, rgba(184,37,24,0.11), rgba(184,37,24,0.03));
 }
-.repo-tile.tile-green:hover { background: rgba(24,111,61,0.19); }
-.repo-tile.tile-amber:hover { background: rgba(154,82,0,0.19); }
-.repo-tile.tile-red:hover   { background: rgba(184,37,24,0.19); }
-html[data-theme="dark"] .repo-tile.tile-green { background: rgba(24,111,61,0.22); }
-html[data-theme="dark"] .repo-tile.tile-amber { background: rgba(154,82,0,0.22); }
-html[data-theme="dark"] .repo-tile.tile-red   { background: rgba(184,37,24,0.22); }
-html[data-theme="dark"] .repo-tile.tile-green:hover { background: rgba(24,111,61,0.30); }
-html[data-theme="dark"] .repo-tile.tile-amber:hover { background: rgba(154,82,0,0.30); }
-html[data-theme="dark"] .repo-tile.tile-red:hover   { background: rgba(184,37,24,0.30); }
+.repo-tile.tile-green::after { background: var(--green); }
+.repo-tile.tile-amber::after { background: var(--amber); }
+.repo-tile.tile-red::after   { background: var(--red); }
+.repo-tile.tile-green:hover { border-color: rgba(24,111,61,0.45); }
+.repo-tile.tile-amber:hover { border-color: rgba(154,82,0,0.45); }
+.repo-tile.tile-red:hover   { border-color: rgba(184,37,24,0.45); }
+html[data-theme="dark"] .repo-tile.tile-green { background: linear-gradient(160deg, rgba(24,111,61,0.20), rgba(24,111,61,0.04)); }
+html[data-theme="dark"] .repo-tile.tile-amber { background: linear-gradient(160deg, rgba(154,82,0,0.20), rgba(154,82,0,0.04)); }
+html[data-theme="dark"] .repo-tile.tile-red   { background: linear-gradient(160deg, rgba(184,37,24,0.22), rgba(184,37,24,0.05)); }
 
-.tm-sec-lbl { font-weight: 600; }
-.repo-tile.tile-green .tm-sec-lbl { color: var(--green); }
-.repo-tile.tile-amber .tm-sec-lbl { color: var(--amber); }
-.repo-tile.tile-red   .tm-sec-lbl { color: var(--red); }
+/* status pill */
+.tm-sec-lbl {
+  font-weight: 700; font-size: 9px; letter-spacing: 0.6px; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px; display: inline-block;
+}
+.repo-tile.tile-green .tm-sec-lbl { color: var(--green); background: rgba(24,111,61,0.14); }
+.repo-tile.tile-amber .tm-sec-lbl { color: var(--amber); background: rgba(154,82,0,0.14); }
+.repo-tile.tile-red   .tm-sec-lbl { color: var(--red);   background: rgba(184,37,24,0.14); }
 
 /* ── LIVE PILL ───────────────────────────────────── */
 .dash-controls-right { display: flex; align-items: center; gap: 10px; }
