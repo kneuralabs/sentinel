@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>GitSphere Sentinel · Automated Remediation Hub</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: radial-gradient(circle at 10% 30%, #0b0d15, #030507);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'SF Pro Text', sans-serif;
+      color: #eef2ff;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+    }
+
+    .app-container {
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      padding-bottom: 1rem;
+    }
+
+    .title-section h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #FFFFFF 0%, #f97316 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      letter-spacing: -0.3px;
+    }
+
+    .title-section p {
+      color: #9ca3af;
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .badge {
+      background: rgba(15, 25, 35, 0.7);
+      backdrop-filter: blur(4px);
+      padding: 0.4rem 1rem;
+      border-radius: 60px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      border: 1px solid rgba(71, 85, 105, 0.5);
+    }
+
+    .card {
+      background: rgba(10, 15, 25, 0.65);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 32px;
+      padding: 1.6rem 2rem;
+      box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.4);
+    }
+
+    .auth-panel {
+      margin-bottom: 2rem;
+    }
+
+    .input-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-top: 0.5rem;
+    }
+
+    .input-field {
+      flex: 2;
+      min-width: 220px;
+    }
+
+    label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      color: #9ab3d5;
+      display: block;
+      margin-bottom: 0.3rem;
+    }
+
+    input {
+      width: 100%;
+      background: #0f121f;
+      border: 1px solid #2d3a4e;
+      border-radius: 20px;
+      padding: 0.75rem 1.2rem;
+      font-size: 0.9rem;
+      color: #f0f4fe;
+      transition: 0.2s;
+      font-family: monospace;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #f97316;
+      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3);
+    }
+
+    button {
+      background: #1e2a3a;
+      border: none;
+      padding: 0.7rem 1.6rem;
+      border-radius: 40px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: 0.2s;
+      color: #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #334155;
+    }
+
+    button.primary {
+      background: linear-gradient(105deg, #ea580c, #9a3412);
+      border: none;
+      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+      color: white;
+    }
+
+    button.primary:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }
+
+    .danger-btn {
+      background: rgba(220, 38, 38, 0.2);
+      border-color: #b91c1c;
+      color: #fecaca;
+    }
+
+    .stats-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: rgba(0, 0, 0, 0.45);
+      border-radius: 28px;
+      padding: 0.6rem 1.5rem;
+      border-left: 4px solid #f97316;
+    }
+
+    .repo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .repo-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      border-radius: 28px;
+      overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.2s;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .repo-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 30px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .repo-card-green {
+      border-top: 5px solid #10b981;
+    }
+    .repo-card-amber {
+      border-top: 5px solid #f59e0b;
+    }
+    .repo-card-red {
+      border-top: 5px solid #ef4444;
+    }
+
+    .repo-header {
+      padding: 1.2rem 1.5rem 0.8rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.4);
+    }
+
+    .repo-name-section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      font-family: monospace;
+    }
+
+    .status-icon {
+      font-size: 1.3rem;
+    }
+
+    .commit-badge, .vuln-badge {
+      border-radius: 40px;
+      padding: 0.2rem 0.8rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .commit-badge { background: #0f172a; border-left: 3px solid #3b82f6; }
+    .vuln-badge { background: #2c0f0f; border-left: 3px solid #ef4444; color: #fecaca; }
+
+    .section-title {
+      font-weight: 600;
+      margin: 1rem 1rem 0.5rem 1rem;
+      font-size: 0.85rem;
+      letter-spacing: -0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .commit-list, .vuln-list {
+      padding: 0.2rem 1rem 0.8rem;
+    }
+
+    .commit-item, .vuln-item {
+      border-left: 3px solid;
+      padding: 0.6rem 0 0.6rem 0.8rem;
+      margin: 0.5rem 0;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 18px;
+    }
+    .commit-item { border-left-color: #3b82f6; }
+    .vuln-item { border-left-color: #ef4444; }
+
+    .vuln-severity {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 30px;
+      font-size: 0.65rem;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    .severity-critical { background: #7f1a1a; color: #ffe4e4; }
+    .severity-high { background: #b91c1c; color: white; }
+    .severity-medium { background: #b45309; color: #ffedd5; }
+    .severity-low { background: #2d3a2f; color: #bbf7d0; }
+
+    .resolution-box {
+      background: #0b1620;
+      padding: 0.6rem 1rem;
+      border-radius: 18px;
+      margin-top: 12px;
+      border-left: 4px solid #10b981;
+    }
+    .resolution-title {
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: #86efac;
+      margin-bottom: 6px;
+    }
+    .resolution-steps {
+      font-size: 0.7rem;
+      font-family: monospace;
+      color: #cbd5e6;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .error-resolution {
+      background: #2a1215;
+      border-left-color: #ef4444;
+    }
+    .text-muted { color: #7c8aa0; font-size: 0.7rem; }
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #111827e6;
+      backdrop-filter: blur(8px);
+      border-radius: 48px;
+      padding: 0.8rem 1.5rem;
+      border-left: 4px solid #f97316;
+      font-size: 0.85rem;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    a { color: #f9a66c; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .loading-spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top: 2px solid #f97316;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg {
+      background: rgba(127,29,29,0.6);
+      padding: 0.6rem;
+      border-radius: 16px;
+      margin: 0.5rem 1rem;
+      font-size: 0.75rem;
+    }
+    @media (max-width: 680px) {
+      body { padding: 1rem; }
+      .repo-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-container">
+  <div class="hero">
+    <div class="title-section">
+      <h1>🛡️ GitSphere Sentinel</h1>
+      <p>vulnerability remediation engine · step‑by‑step fixes for every issue</p>
+    </div>
+    <div class="badge" id="liveBadge">⚡ auto-remediation advisor</div>
+  </div>
+
+  <div class="card auth-panel" id="authPanel">
+    <div><span style="font-weight:600;">🔐 GitHub access token</span> <span style="font-size:0.7rem;">· needs <code>repo</code> + <code>security_events</code> (for vulns)</span></div>
+    <div class="input-group">
+      <div class="input-field">
+        <label>🔑 PERSONAL ACCESS TOKEN</label>
+        <input type="password" id="githubToken" placeholder="ghp_xxx or github_pat_xxx" autocomplete="off">
+      </div>
+      <div>
+        <button id="connectBtn" class="primary">⟳ CONNECT & SCAN</button>
+        <button id="clearStorageBtn" class="danger-btn" style="margin-left:8px;">🗑 reset</button>
+      </div>
+    </div>
+    <div style="font-size:0.7rem; margin-top: 12px; color:#6c86a3;">
+      💡 Each vulnerability includes a <strong>resolution plan</strong> with exact commands. Errors show troubleshooting steps.
+    </div>
+  </div>
+
+  <div id="dashboardArea" style="display: none;">
+    <div class="flex-between" style="margin-bottom: 0.8rem;">
+      <div class="stats-row">
+        <div class="stat-card"><span id="repoCount">0</span> repositories</div>
+        <div class="stat-card"><span id="totalChanges">0</span> new commits</div>
+        <div class="stat-card"><span id="totalVulns">0</span> open vulnerabilities</div>
+        <div class="stat-card">last scan: <span id="lastSyncTime">—</span></div>
+      </div>
+      <button id="manualRefreshBtn" class="primary" style="background:#1f2a3a;">🔄 Rescan + Remediation advice</button>
+    </div>
+    <div id="repoGridContainer" class="repo-grid"></div>
+    <div id="loadingGlobal" style="display: none; text-align: center; padding: 2rem;"><div class="loading-spinner"></div> auditing & building fixes...</div>
+  </div>
+
+  <div id="initialMessage" class="card" style="text-align: center; opacity: 0.8;">
+    ✨ Enter GitHub token → GitSphere will detect vulnerabilities and provide step‑by‑step resolution guides.
+  </div>
+</div>
+
+<script>
+  // ----------------------------- STORAGE & STATE ---------------------------------
+  const STORAGE_KEYS = {
+    TOKEN: 'gitsphere_sentinel_token',
+    REPOS_META: 'gitsphere_sentinel_repos',
+  };
+
+  let currentState = {
+    token: null,
+    repos: [],
+    lastFetchMap: {},
+    lastOverallSync: null
+  };
+
+  // DOM elements
+  const tokenInput = document.getElementById('githubToken');
+  const connectBtn = document.getElementById('connectBtn');
+  const clearBtn = document.getElementById('clearStorageBtn');
+  const dashboardArea = document.getElementById('dashboardArea');
+  const initialMessageDiv = document.getElementById('initialMessage');
+  const repoGridContainer = document.getElementById('repoGridContainer');
+  const repoCountSpan = document.getElementById('repoCount');
+  const totalChangesSpan = document.getElementById('totalChanges');
+  const totalVulnsSpan = document.getElementById('totalVulns');
+  const lastSyncTimeSpan = document.getElementById('lastSyncTime');
+  const manualRefreshBtn = document.getElementById('manualRefreshBtn');
+  const loadingGlobalDiv = document.getElementById('loadingGlobal');
+
+  function showToast(msg, isError = false) {
+    let toast = document.querySelector('.toast');
+    if(toast) toast.remove();
+    const newToast = document.createElement('div');
+    newToast.className = 'toast';
+    newToast.style.borderLeftColor = isError ? '#ef4444' : '#f97316';
+    newToast.innerText = msg;
+    document.body.appendChild(newToast);
+    setTimeout(() => newToast.remove(), 4000);
+  }
+
+  async function fetchWithToken(url, token, options = {}) {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        ...(options.headers || {})
+      }
+    });
+    if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
+      throw new Error('Rate limit exceeded. Wait a moment.');
+    }
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`GitHub API ${response.status}: ${errorText.slice(0, 100)}`);
+    }
+    return response;
+  }
+
+  async function fetchAllUserRepos(token) {
+    let page = 1;
+    let allRepos = [];
+    let hasNext = true;
+    while (hasNext) {
+      const url = `https://api.github.com/user/repos?per_page=100&page=${page}&sort=full_name`;
+      const response = await fetchWithToken(url, token);
+      const repos = await response.json();
+      if (!repos.length) break;
+      allRepos.push(...repos);
+      const linkHeader = response.headers.get('Link');
+      hasNext = linkHeader && linkHeader.includes('rel="next"');
+      page++;
+    }
+    return allRepos.map(repo => ({
+      fullName: repo.full_name,
+      owner: repo.owner.login,
+      name: repo.name,
+      defaultBranch: repo.default_branch
+    }));
+  }
+
+  async function fetchLatestCommitDate(token, owner, repo, branch) {
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=1`;
+      const response = await fetchWithToken(url, token);
+      const commits = await response.json();
+      if (commits && commits.length && commits[0].commit?.committer?.date) {
+        return commits[0].commit.committer.date;
+      }
+      return new Date().toISOString();
+    } catch(e) { return new Date().toISOString(); }
+  }
+
+  async function fetchCommitsSince(token, owner, repo, branch, sinceISO) {
+    const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=40&since=${encodeURIComponent(sinceISO)}`;
+    const response = await fetchWithToken(url, token);
+    const commits = await response.json();
+    if (!Array.isArray(commits)) return [];
+    return commits.map(c => ({
+      sha: c.sha,
+      message: c.commit.message.split('\n')[0],
+      authorName: c.commit.author?.name || c.author?.login || 'unknown',
+      date: c.commit.author?.date || c.commit.committer?.date,
+      html_url: c.html_url
+    }));
+  }
+
+  async function fetchVulnerabilitiesForRepo(token, owner, repo) {
+    try {
+      const url = `https://api.github.com/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=50`;
+      const response = await fetchWithToken(url, token);
+      const alerts = await response.json();
+      if (!Array.isArray(alerts)) return [];
+      return alerts.map(alert => ({
+        id: alert.number,
+        summary: alert.security_advisory?.summary || alert.security_vulnerability?.package?.name || 'Unknown vulnerability',
+        severity: alert.security_advisory?.severity || (alert.security_vulnerability?.severity || 'unknown'),
+        description: alert.security_advisory?.description?.slice(0, 300) || 'No description',
+        packageName: alert.security_vulnerability?.package?.name || 'unknown package',
+        vulnerableVersionRange: alert.security_vulnerability?.vulnerable_version_range || 'unknown',
+        fixedVersion: alert.security_vulnerability?.first_patched_version?.identifier || null,
+        htmlUrl: alert.html_url,
+        ecosystem: alert.security_vulnerability?.package?.ecosystem || 'npm/maven/pip/etc'
+      }));
+    } catch (err) {
+      if (err.message.includes('403') || err.message.includes('404') || err.message.includes('security_events')) {
+        return { error: 'missing_permissions' };
+      }
+      return { error: err.message };
+    }
+  }
+
+  // Enhanced resolution steps generator
+  function getDetailedFixSteps(vuln) {
+    const pkg = vuln.packageName;
+    const fixed = vuln.fixedVersion;
+    const ecosystem = vuln.ecosystem?.toLowerCase() || '';
+    let commands = '';
+    if (ecosystem.includes('npm') || pkg.includes('npm') || ecosystem === 'npm') {
+      commands = `npm update ${pkg}\nnpm audit fix\n# Or upgrade manually:\nnpm install ${pkg}@${fixed || 'latest'}`;
+    } else if (ecosystem.includes('pip') || ecosystem === 'pip') {
+      commands = `pip install --upgrade ${pkg}\n# Or specific version:\npip install ${pkg}==${fixed || 'latest'}`;
+    } else if (ecosystem.includes('maven') || ecosystem === 'maven') {
+      commands = `Update <version> in pom.xml for ${pkg} to ${fixed || 'latest'}\nmvn versions:use-latest-versions -Dincludes=${pkg}`;
+    } else if (ecosystem.includes('go')) {
+      commands = `go get -u ${pkg}\ngo mod tidy`;
+    } else {
+      commands = `Check package manager documentation to upgrade ${pkg} to ${fixed || 'patched version'}`;
+    }
+    if (!fixed) commands += `\n⚠️ No patch version available → consider removing dependency or applying workaround from advisory.`;
+    return `🔧 RESOLUTION STEPS:\n1. Identify where ${pkg} is used (package.json, requirements.txt, etc.)\n2. Run: ${commands}\n3. Test your application after update\n4. Commit changes and push.\n📖 More details: ${vuln.htmlUrl}`;
+  }
+
+  // Error resolution suggestions
+  function getErrorResolution(errorType, detail = '') {
+    if (errorType === 'commit_fetch') {
+      return "❌ Commit fetch failed.\n🔧 STEPS:\n- Check network connectivity\n- Verify token still has 'repo' scope\n- If rate limited, wait 1 minute\n- Try regenerating token at https://github.com/settings/tokens";
+    }
+    if (errorType === 'missing_scope') {
+      return "🔐 Missing security_events scope.\n🔧 STEPS:\n1. Go to GitHub Settings → Developer settings → Personal access tokens\n2. Edit or regenerate token with 'repo' and 'security_events' scopes\n3. Update token in this app (click reset and reconnect)";
+    }
+    if (errorType === 'api_error') {
+      return `⚠️ API error: ${detail}\n🔧 STEPS:\n- Check token validity\n- Ensure you have access to the repository\n- Try refreshing token permissions`;
+    }
+    return `🔧 General troubleshooting: Verify token scopes, rate limit, or repo visibility. Try reconnecting.`;
+  }
+
+  async function refreshFullScan(showToastMsg = true) {
+    if (!currentState.token || !currentState.repos.length) {
+      showToast("Connect and load repositories first", true);
+      return false;
+    }
+    loadingGlobalDiv.style.display = 'flex';
+    repoGridContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:2rem;"><div class="loading-spinner"></div> analyzing repositories & generating remediation plans...</div>';
+    const token = currentState.token;
+    const oldFetchMap = { ...currentState.lastFetchMap };
+    const reposArray = [...currentState.repos];
+    const updatedTimestamps = { ...oldFetchMap };
+    const repoDetails = [];
+    
+    const batchLimit = 3;
+    for (let i = 0; i < reposArray.length; i += batchLimit) {
+      const batch = reposArray.slice(i, i + batchLimit);
+      const batchResults = await Promise.all(batch.map(async (repo) => {
+        const { fullName, owner, name, defaultBranch } = repo;
+        let commits = [];
+        let commitError = null;
+        let newTimestamp = oldFetchMap[fullName];
+        try {
+          if (oldFetchMap[fullName]) {
+            commits = await fetchCommitsSince(token, owner, name, defaultBranch, oldFetchMap[fullName]);
+            if (commits.length > 0 && commits[0].date) newTimestamp = commits[0].date;
+            else {
+              const freshDate = await fetchLatestCommitDate(token, owner, name, defaultBranch);
+              newTimestamp = freshDate;
+            }
+          } else {
+            const freshDate = await fetchLatestCommitDate(token, owner, name, defaultBranch);
+            newTimestamp = freshDate;
+          }
+          updatedTimestamps[fullName] = newTimestamp;
+        } catch(e) {
+          commitError = e.message;
+          updatedTimestamps[fullName] = oldFetchMap[fullName] || new Date().toISOString();
+        }
+
+        let vulnsResult = [];
+        let vulnError = null;
+        let missingScope = false;
+        try {
+          const vulnData = await fetchVulnerabilitiesForRepo(token, owner, name);
+          if (vulnData && vulnData.error === 'missing_permissions') {
+            missingScope = true;
+            vulnError = 'Missing security_events scope';
+          } else if (vulnData && vulnData.error) {
+            vulnError = vulnData.error;
+          } else if (Array.isArray(vulnData)) {
+            vulnsResult = vulnData;
+          }
+        } catch (err) {
+          vulnError = err.message;
+        }
+        const hasError = !!(commitError || (vulnError && !missingScope));
+        return { fullName, commits, vulns: vulnsResult, commitError, vulnError, missingScope, hasError };
+      }));
+      batchResults.forEach(r => repoDetails.push(r));
+      repoGridContainer.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:1rem;">📋 scanning ${Math.min(i+batchLimit, reposArray.length)}/${reposArray.length} repos & preparing fixes</div>`;
+    }
+
+    currentState.lastFetchMap = updatedTimestamps;
+    currentState.lastOverallSync = new Date().toISOString();
+    persistStateToLocal();
+    renderRepoGridWithRemediation(repoDetails);
+    const totalNew = repoDetails.reduce((a, r) => a + r.commits.length, 0);
+    const totalVuln = repoDetails.reduce((a, r) => a + (Array.isArray(r.vulns) ? r.vulns.length : 0), 0);
+    totalChangesSpan.innerText = totalNew;
+    totalVulnsSpan.innerText = totalVuln;
+    lastSyncTimeSpan.innerText = new Date().toLocaleString();
+    if (showToastMsg && totalVuln > 0) showToast(`🛠️ Found ${totalVuln} vulnerabilities — remediation steps are embedded in each card.`, false);
+    else if (showToastMsg) showToast("✅ Scan complete. No vulnerabilities detected.", false);
+    loadingGlobalDiv.style.display = 'none';
+    return true;
+  }
+
+  function renderRepoGridWithRemediation(repoDetails) {
+    if (!repoDetails.length) {
+      repoGridContainer.innerHTML = `<div class="card" style="grid-column:1/-1;">No repositories found.</div>`;
+      return;
+    }
+    let html = '';
+    for (const detail of repoDetails) {
+      const repo = currentState.repos.find(r => r.fullName === detail.fullName);
+      if (!repo) continue;
+      const hasError = detail.hasError;
+      const vulns = detail.vulns || [];
+      const hasVulns = vulns.length > 0;
+      const missingScope = detail.missingScope;
+      
+      let statusClass = 'repo-card-green';
+      let statusIcon = '🟢';
+      let statusText = 'Healthy';
+      if (hasError) {
+        statusClass = 'repo-card-red';
+        statusIcon = '🔴';
+        statusText = 'Error';
+      } else if (hasVulns || missingScope) {
+        statusClass = 'repo-card-amber';
+        statusIcon = '🟠';
+        statusText = hasVulns ? `${vulns.length} vulnerabilit${vulns.length !== 1 ? 'ies' : 'y'}` : 'Needs scope';
+      }
+      
+      html += `<div class="repo-card ${statusClass}">
+        <div class="repo-header">
+          <div class="repo-name-section">
+            <span class="status-icon">${statusIcon}</span>
+            <span>📁 ${escapeHtml(repo.fullName)}</span>
+          </div>
+          <div>
+            ${detail.commits.length ? `<span class="commit-badge">+${detail.commits.length} new commit${detail.commits.length !== 1 ? 's' : ''}</span>` : ''}
+            ${hasVulns ? `<span class="vuln-badge">⚠️ ${vulns.length} vuln${vulns.length !== 1 ? 's' : ''}</span>` : ''}
+          </div>
+        </div>`;
+      
+      // Error details + resolution steps
+      if (detail.commitError) {
+        html += `<div class="error-msg">
+          <strong>❌ Commit fetch error</strong><br>${escapeHtml(detail.commitError)}
+          <div class="resolution-box error-resolution" style="margin-top:8px;">
+            <div class="resolution-title">🔧 AUTO-REMEDIATION STEPS</div>
+            <div class="resolution-steps">${getErrorResolution('commit_fetch')}</div>
+          </div>
+        </div>`;
+      }
+      if (detail.vulnError && !detail.missingScope) {
+        html += `<div class="error-msg">
+          <strong>⚠️ Vulnerability scan error</strong><br>${escapeHtml(detail.vulnError)}
+          <div class="resolution-box error-resolution">
+            <div class="resolution-title">🔧 RESOLUTION PLAN</div>
+            <div class="resolution-steps">${getErrorResolution('api_error', detail.vulnError)}</div>
+          </div>
+        </div>`;
+      }
+      if (detail.missingScope) {
+        html += `<div class="error-msg">
+          <strong>🔐 Missing security_events scope</strong>
+          <div class="resolution-box error-resolution">
+            <div class="resolution-title">🔧 HOW TO FIX</div>
+            <div class="resolution-steps">${getErrorResolution('missing_scope')}</div>
+          </div>
+        </div>`;
+      }
+      
+      // Commits section
+      if (detail.commits.length) {
+        html += `<div class="section-title">🔄 New commits</div><div class="commit-list">`;
+        detail.commits.slice(0, 4).forEach(c => {
+          html += `<div class="commit-item">
+            <div>✏️ ${escapeHtml(c.message)}</div>
+            <div class="text-muted" style="margin-top:4px;">👤 ${escapeHtml(c.authorName)} · <a href="${c.html_url}" target="_blank">view</a></div>
+          </div>`;
+        });
+        if (detail.commits.length > 4) html += `<div class="text-muted">+ ${detail.commits.length-4} more</div>`;
+        html += `</div>`;
+      }
+      
+      // Vulnerabilities with FIX STEPS
+      if (vulns.length) {
+        html += `<div class="section-title">🚨 Vulnerabilities + Remediation</div><div class="vuln-list">`;
+        vulns.forEach(v => {
+          const severityClass = 
+            v.severity === 'critical' ? 'severity-critical' :
+            v.severity === 'high' ? 'severity-high' :
+            v.severity === 'medium' ? 'severity-medium' : 'severity-low';
+          const fixSteps = getDetailedFixSteps(v);
+          html += `<div class="vuln-item">
+            <div><strong>📦 ${escapeHtml(v.packageName)}</strong> <span class="vuln-severity ${severityClass}">${v.severity.toUpperCase()}</span></div>
+            <div style="margin:5px 0;">⚠️ ${escapeHtml(v.summary)}</div>
+            <div class="text-muted">📌 Affected: ${escapeHtml(v.vulnerableVersionRange)}</div>
+            <div class="resolution-box">
+              <div class="resolution-title">🛠️ STEP-BY-STEP FIX</div>
+              <div class="resolution-steps">${escapeHtml(fixSteps).replace(/\n/g, '<br>')}</div>
+            </div>
+            <div style="margin-top:6px;"><a href="${v.htmlUrl}" target="_blank">📖 Read full advisory →</a></div>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+      
+      if (!detail.commits.length && !vulns.length && !detail.commitError && !detail.vulnError && !detail.missingScope) {
+        html += `<div class="text-muted" style="padding:1rem; text-align:center;">✅ No issues — up to date and secure.</div>`;
+      }
+      html += `</div>`;
+    }
+    repoGridContainer.innerHTML = html;
+  }
+
+  function renderBaselineDashboard() {
+    repoCountSpan.innerText = currentState.repos.length;
+    totalChangesSpan.innerText = "0";
+    totalVulnsSpan.innerText = "0";
+    lastSyncTimeSpan.innerText = currentState.lastOverallSync ? new Date(currentState.lastOverallSync).toLocaleString() : "just now";
+    repoGridContainer.innerHTML = `<div class="card" style="grid-column:1/-1;">✅ Ready. Click "Rescan + Remediation advice" to detect vulnerabilities and get fix guides.</div>`;
+  }
+
+  // ----------------------------- INIT & PERSISTENCE ---------------------------------
+  async function fullInit(token) {
+    loadingGlobalDiv.style.display = 'flex';
+    repoGridContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center;">📡 fetching repositories...</div>';
+    try {
+      const reposList = await fetchAllUserRepos(token);
+      if (!reposList.length) throw new Error('No repos found.');
+      const lastFetchMapNew = {};
+      for (let i = 0; i < reposList.length; i += 5) {
+        const batch = reposList.slice(i, i+5);
+        await Promise.all(batch.map(async (repo) => {
+          const latestDate = await fetchLatestCommitDate(token, repo.owner, repo.name, repo.defaultBranch);
+          lastFetchMapNew[repo.fullName] = latestDate;
+        }));
+        repoGridContainer.innerHTML = `<div style="grid-column:1/-1; text-align:center;">⚙️ caching ${Math.min(i+5, reposList.length)}/${reposList.length}</div>`;
+      }
+      currentState.repos = reposList;
+      currentState.lastFetchMap = lastFetchMapNew;
+      currentState.lastOverallSync = new Date().toISOString();
+      currentState.token = token;
+      persistStateToLocal();
+      renderBaselineDashboard();
+      showToast(`✅ ${reposList.length} repos loaded. Running first vulnerability & remediation scan...`, false);
+      dashboardArea.style.display = 'block';
+      initialMessageDiv.style.display = 'none';
+      await refreshFullScan(true);
+    } catch (err) {
+      showToast(`Init error: ${err.message}`, true);
+      dashboardArea.style.display = 'none';
+      initialMessageDiv.style.display = 'block';
+      initialMessageDiv.innerHTML = `<div class="card">❌ ${err.message}<br><br>Ensure token has 'repo' and 'security_events' scopes.</div>`;
+    } finally {
+      loadingGlobalDiv.style.display = 'none';
+    }
+  }
+
+  function persistStateToLocal() {
+    if (currentState.token) localStorage.setItem(STORAGE_KEYS.TOKEN, currentState.token);
+    localStorage.setItem(STORAGE_KEYS.REPOS_META, JSON.stringify({
+      repos: currentState.repos,
+      lastFetchMap: currentState.lastFetchMap,
+      lastOverallSync: currentState.lastOverallSync
+    }));
+  }
+
+  function loadStateFromLocal() {
+    const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    const storedMeta = localStorage.getItem(STORAGE_KEYS.REPOS_META);
+    if (storedToken) tokenInput.value = storedToken;
+    if (storedMeta && storedToken) {
+      try {
+        const parsed = JSON.parse(storedMeta);
+        currentState.repos = parsed.repos || [];
+        currentState.lastFetchMap = parsed.lastFetchMap || {};
+        currentState.lastOverallSync = parsed.lastOverallSync || null;
+        currentState.token = storedToken;
+        if (currentState.repos.length) {
+          dashboardArea.style.display = 'block';
+          initialMessageDiv.style.display = 'none';
+          renderBaselineDashboard();
+          setTimeout(() => refreshFullScan(true).catch(console.warn), 300);
+          return true;
+        }
+      } catch(e) {}
+    }
+    return false;
+  }
+
+  function resetAndClear() {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REPOS_META);
+    currentState = { token: null, repos: [], lastFetchMap: {}, lastOverallSync: null };
+    tokenInput.value = '';
+    dashboardArea.style.display = 'none';
+    initialMessageDiv.style.display = 'block';
+    initialMessageDiv.innerHTML = `<div class="card">🧹 Reset complete. Enter token to start.</div>`;
+    showToast("All data cleared", false);
+  }
+
+  connectBtn.addEventListener('click', async () => {
+    const token = tokenInput.value.trim();
+    if (!token) { showToast("Enter GitHub token", true); return; }
+    await fullInit(token);
+  });
+  manualRefreshBtn.addEventListener('click', async () => {
+    if (!currentState.token || !currentState.repos.length) { showToast("Connect first", true); return; }
+    await refreshFullScan(true);
+  });
+  clearBtn.addEventListener('click', resetAndClear);
+  function escapeHtml(str) { return String(str).replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+  if (!loadStateFromLocal()) {
+    dashboardArea.style.display = 'none';
+    initialMessageDiv.style.display = 'block';
+  }
+</script>
+</body>
+</html>
