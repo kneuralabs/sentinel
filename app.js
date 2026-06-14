@@ -141,12 +141,20 @@ async function getCommitsSince(token, owner, repo, branch, since) {
   const res  = await apiFetch(url, token);
   const data = await res.json();
   if (!Array.isArray(data)) return [];
-  return data.map(c => ({
-    sha:     c.sha,
-    message: c.commit.message.split('\n')[0],
-    author:  c.commit.author?.name || c.author?.login || 'unknown',
-    url:     c.html_url
-  }));
+  // GitHub's `since` is inclusive, so the previous scan's latest commit comes
+  // back again — exclude it so only genuinely new commits are counted.
+  return data
+    .filter(c => {
+      const d = c.commit.author?.date || c.commit.committer?.date;
+      return d && d > since;
+    })
+    .map(c => ({
+      sha:     c.sha,
+      message: c.commit.message.split('\n')[0],
+      author:  c.commit.author?.name || c.author?.login || 'unknown',
+      date:    c.commit.author?.date || c.commit.committer?.date,
+      url:     c.html_url
+    }));
 }
 
 async function getVulns(token, owner, repo) {
