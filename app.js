@@ -236,6 +236,52 @@ function setConnected(n) {
   sText.textContent = `${n} repos`;
 }
 
+// ── STAT DRILL-DOWNS ──────────────────────────────────────────────────────────
+// Populates the expandable lists beneath the Repositories / New Commits /
+// Open Vulnerabilities stat cells. `details` is the latest scan results (or null
+// before a scan has run, in which case only the repository list is available).
+function renderStatDrilldowns(details) {
+  const repoList   = document.getElementById('repoList');
+  const commitList = document.getElementById('commitList');
+  const vulnList   = document.getElementById('vulnList');
+  if (!repoList) return;
+
+  // Repositories — every repo name, one per line.
+  repoList.innerHTML = state.repos.length
+    ? state.repos.map(r =>
+        `<div class="stat-list-item"><span class="sli-main">${esc(r.fullName)}</span></div>`).join('')
+    : '<div class="stat-list-empty">No repositories</div>';
+
+  // New commits — latest 5 across all repos, each tagged with its repo name.
+  const commits = [];
+  (details || []).forEach(d => (d.commits || []).forEach(c => commits.push({ ...c, repo: d.fullName })));
+  commits.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  const top5 = commits.slice(0, 5);
+  commitList.innerHTML = top5.length
+    ? top5.map(c => {
+        const dt = c.date
+          ? new Date(c.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '';
+        return `<div class="stat-list-item">
+          <span class="sli-main">${esc(c.message)}</span>
+          <span class="sli-sub"><span class="sli-repo">${esc(c.repo)}</span>${dt ? ' · ' + esc(dt) : ''}</span>
+        </div>`;
+      }).join('')
+    : '<div class="stat-list-empty">No new commits</div>';
+
+  // Open vulnerabilities — only repos that actually have open alerts.
+  const vulnRepos = (details || [])
+    .filter(d => (d.vulns || []).length)
+    .map(d => ({ repo: d.fullName, count: d.vulns.length }));
+  vulnList.innerHTML = vulnRepos.length
+    ? vulnRepos.map(v =>
+        `<div class="stat-list-item">
+          <span class="sli-main">${esc(v.repo)}</span>
+          <span class="sli-sub">${v.count} open vuln${v.count !== 1 ? 's' : ''}</span>
+        </div>`).join('')
+    : '<div class="stat-list-empty">No open vulnerabilities</div>';
+}
+
 // ── LIVE CHECK ────────────────────────────────────────────────────────────────
 const livePill   = document.getElementById('livePill');
 const liveStatus = document.getElementById('liveStatus');
@@ -323,6 +369,7 @@ function renderGrid(details) {
     return;
   }
   window._scanDetails = details;
+  renderStatDrilldowns(details);
 
   grid.innerHTML = details.map((d, i) => {
     const repo = state.repos.find(r => r.fullName === d.fullName);
@@ -376,6 +423,7 @@ function renderBaseline() {
   vulnsEl.textContent     = '0';
   vulnsEl.className       = 'stat-num';
   syncEl.textContent      = state.lastSync ? fmtTime(state.lastSync) : '—';
+  renderStatDrilldowns(null);
   grid.innerHTML = `<div class="empty-card" style="border:none; padding:32px 60px; grid-column:1/-1">
     <div class="empty-sub">Click Rescan to detect vulnerabilities across all repositories</div></div>`;
 }
@@ -639,6 +687,12 @@ function applyTheme(t) {
 }
 applyTheme(activeTheme);
 themeBtn.addEventListener('click', () => applyTheme(activeTheme === 'dark' ? 'light' : 'dark'));
+
+// ── STAT CELL EXPAND/COLLAPSE ────────────────────────────────────────────────
+['cellRepos', 'cellCommits', 'cellVulns'].forEach(id => {
+  const cell = document.getElementById(id);
+  if (cell) cell.addEventListener('click', () => cell.classList.toggle('open'));
+});
 
 // ── ACCESS POPOVER ────────────────────────────────────────────────────────────
 const accessDotBtn  = document.getElementById('accessDotBtn');

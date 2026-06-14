@@ -81,17 +81,20 @@
     </div>
 
     <div class="stats-bar">
-      <div class="stat-cell">
+      <div class="stat-cell stat-expandable" id="cellRepos">
         <div class="stat-num" id="repoCount">—</div>
-        <div class="stat-lbl">Repositories</div>
+        <div class="stat-lbl">Repositories <span class="stat-caret">▾</span></div>
+        <div class="stat-list" id="repoList"></div>
       </div>
-      <div class="stat-cell">
+      <div class="stat-cell stat-expandable" id="cellCommits">
         <div class="stat-num" id="totalChanges">—</div>
-        <div class="stat-lbl">New Commits</div>
+        <div class="stat-lbl">New Commits <span class="stat-caret">▾</span></div>
+        <div class="stat-list" id="commitList"></div>
       </div>
-      <div class="stat-cell">
+      <div class="stat-cell stat-expandable" id="cellVulns">
         <div class="stat-num" id="totalVulns">—</div>
-        <div class="stat-lbl">Open Vulnerabilities</div>
+        <div class="stat-lbl">Open Vulnerabilities <span class="stat-caret">▾</span></div>
+        <div class="stat-list" id="vulnList"></div>
       </div>
       <div class="stat-cell">
         <div class="stat-num sm" id="lastSyncTime">—</div>
