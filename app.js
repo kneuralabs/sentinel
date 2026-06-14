@@ -218,6 +218,21 @@ function tileColor(d) {
   return 'green';
 }
 
+let sortMode = 'sec';
+function sortDetails(details) {
+  const rank = { red: 0, amber: 1, green: 2 };
+  const arr = [...details];
+  switch (sortMode) {
+    case 'commits-desc':   arr.sort((a, b) => (b.totalCommits || 0) - (a.totalCommits || 0)); break;
+    case 'commits-asc':    arr.sort((a, b) => (a.totalCommits || 0) - (b.totalCommits || 0)); break;
+    case 'branches-desc':  arr.sort((a, b) => (b.branchCount || 0) - (a.branchCount || 0)); break;
+    case 'branches-asc':   arr.sort((a, b) => (a.branchCount || 0) - (b.branchCount || 0)); break;
+    case 'alpha':          arr.sort((a, b) => a.fullName.localeCompare(b.fullName)); break;
+    default:               arr.sort((a, b) => rank[tileColor(a)] - rank[tileColor(b)]); break;
+  }
+  return arr;
+}
+
 function pluralize(n, word) { return `${n} ${word}${n !== 1 ? 's' : ''}`; }
 
 function fmtTime(iso) {
@@ -368,8 +383,9 @@ function renderGrid(details) {
       <div class="empty-title">No repositories found</div></div>`;
     return;
   }
-  window._scanDetails = details;
   renderStatDrilldowns(details);
+  details = sortDetails(details);
+  window._scanDetails = details;
 
   grid.innerHTML = details.map((d, i) => {
     const repo = state.repos.find(r => r.fullName === d.fullName);
@@ -567,6 +583,11 @@ async function fullInit(token) {
 }
 
 // ── RESCAN ────────────────────────────────────────────────────────────────────
+document.getElementById('sortSelect').addEventListener('change', e => {
+  sortMode = e.target.value;
+  if (window._scanDetails) renderGrid(window._scanDetails);
+});
+
 document.getElementById('manualRefreshBtn').addEventListener('click', async () => {
   if (!state.token || !state.repos.length) { toast('Connect first', true); return; }
   showOverlay();
