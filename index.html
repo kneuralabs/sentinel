@@ -3,841 +3,1514 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>GitSphere Sentinel · Automated Remediation Hub</title>
+  <title>Sentinel · Automated Remediation Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:        #f0f0ed;
+      --surface:   #fafaf8;
+      --border:    #d6d6d2;
+      --border-lt: #e8e8e4;
+      --t1:        #111110;
+      --t2:        #5c5c59;
+      --t3:        #a8a8a5;
+      --blue:      #1843B8;
+      --red:       #B82518;
+      --green:     #186F3D;
+      --amber:     #9A5200;
+      --sans:      'Inter', system-ui, -apple-system, sans-serif;
+      --mono:      'JetBrains Mono', 'Courier New', monospace;
     }
 
     body {
-      background: radial-gradient(circle at 10% 30%, #0b0d15, #030507);
-      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'SF Pro Text', sans-serif;
-      color: #eef2ff;
-      padding: 2rem 1.5rem;
+      background: var(--bg);
+      font-family: var(--sans);
+      color: var(--t1);
+      font-size: 14px;
+      line-height: 1.5;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .app-container {
-      max-width: 1600px;
-      margin: 0 auto;
-    }
-
-    .hero {
-      display: flex;
-      justify-content: space-between;
+    /* ── SCAN OVERLAY ─────────────────────────────── */
+    #scanOverlay {
+      position: fixed;
+      inset: 0;
+      background: #0b0b09;
+      z-index: 9000;
+      display: none;
+      flex-direction: column;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin-bottom: 2rem;
-      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
-      padding-bottom: 1rem;
+      justify-content: center;
+      transition: opacity 0.55s ease;
     }
+    #scanOverlay.exiting { opacity: 0; }
 
-    .title-section h1 {
-      font-size: 1.9rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #FFFFFF 0%, #f97316 100%);
-      background-clip: text;
-      -webkit-background-clip: text;
-      color: transparent;
-      letter-spacing: -0.3px;
+    .scan-brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 52px;
+      animation: scanFadeUp 0.5s ease forwards;
     }
-
-    .title-section p {
-      color: #9ca3af;
-      font-size: 0.9rem;
-      margin-top: 0.25rem;
+    .scan-brand img {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
     }
-
-    .badge {
-      background: rgba(15, 25, 35, 0.7);
-      backdrop-filter: blur(4px);
-      padding: 0.4rem 1rem;
-      border-radius: 60px;
-      font-size: 0.8rem;
+    .scan-brand-text {
+      font-family: var(--sans);
       font-weight: 500;
-      border: 1px solid rgba(71, 85, 105, 0.5);
-    }
-
-    .card {
-      background: rgba(10, 15, 25, 0.65);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(56, 189, 248, 0.2);
-      border-radius: 32px;
-      padding: 1.6rem 2rem;
-      box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.4);
-    }
-
-    .auth-panel {
-      margin-bottom: 2rem;
-    }
-
-    .input-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: flex-end;
-      margin-top: 0.5rem;
-    }
-
-    .input-field {
-      flex: 2;
-      min-width: 220px;
-    }
-
-    label {
-      font-size: 0.75rem;
+      font-size: 17px;
+      letter-spacing: 5px;
       text-transform: uppercase;
-      letter-spacing: 1px;
-      font-weight: 600;
-      color: #9ab3d5;
-      display: block;
-      margin-bottom: 0.3rem;
+      color: #e8e8e5;
     }
 
-    input {
-      width: 100%;
-      background: #0f121f;
-      border: 1px solid #2d3a4e;
-      border-radius: 20px;
-      padding: 0.75rem 1.2rem;
-      font-size: 0.9rem;
-      color: #f0f4fe;
-      transition: 0.2s;
-      font-family: monospace;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: #f97316;
-      box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3);
-    }
-
-    button {
-      background: #1e2a3a;
-      border: none;
-      padding: 0.7rem 1.6rem;
-      border-radius: 40px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: 0.2s;
-      color: #e2e8f0;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid #334155;
-    }
-
-    button.primary {
-      background: linear-gradient(105deg, #ea580c, #9a3412);
-      border: none;
-      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
-      color: white;
-    }
-
-    button.primary:hover {
-      transform: translateY(-1px);
-      filter: brightness(1.05);
-    }
-
-    .danger-btn {
-      background: rgba(220, 38, 38, 0.2);
-      border-color: #b91c1c;
-      color: #fecaca;
-    }
-
-    .stats-row {
-      display: flex;
-      gap: 1rem;
-      flex-wrap: wrap;
-      margin-bottom: 1.5rem;
-    }
-
-    .stat-card {
-      background: rgba(0, 0, 0, 0.45);
-      border-radius: 28px;
-      padding: 0.6rem 1.5rem;
-      border-left: 4px solid #f97316;
-    }
-
-    .repo-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
-      gap: 1.5rem;
-      margin-top: 1rem;
-    }
-
-    .repo-card {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(4px);
-      border-radius: 28px;
+    .scan-terminal {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      width: 500px;
+      max-width: 88vw;
+      height: 252px;
       overflow: hidden;
-      transition: transform 0.15s ease, box-shadow 0.2s;
-      border: 1px solid rgba(255, 255, 255, 0.08);
       display: flex;
       flex-direction: column;
+      justify-content: flex-end;
+      gap: 0;
     }
-
-    .repo-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 20px 30px -12px rgba(0, 0, 0, 0.5);
-    }
-
-    .repo-card-green {
-      border-top: 5px solid #10b981;
-    }
-    .repo-card-amber {
-      border-top: 5px solid #f59e0b;
-    }
-    .repo-card-red {
-      border-top: 5px solid #ef4444;
-    }
-
-    .repo-header {
-      padding: 1.2rem 1.5rem 0.8rem 1.5rem;
+    .scan-line {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
       gap: 10px;
-      border-bottom: 1px solid rgba(71, 85, 105, 0.4);
+      padding: 2.5px 0;
+      opacity: 0;
+      transform: translateX(-6px);
+      animation: scanLineIn 0.18s ease forwards;
+    }
+    .scan-ln   { color: #252523; min-width: 22px; text-align: right; user-select: none; }
+    .scan-arr  { color: #323230; }
+    .scan-msg  { color: #5a5a57; }
+    .scan-line.hl  .scan-msg { color: #aaa8a3; }
+    .scan-line.ok  .scan-msg { color: #4ade80; }
+    .scan-line.err .scan-msg { color: #f87171; }
+
+    .scan-prog-wrap {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: #181816;
+    }
+    #scanProgBar {
+      height: 100%;
+      background: var(--blue);
+      width: 0%;
+      transition: width 0.45s ease;
     }
 
-    .repo-name-section {
+    @keyframes scanFadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scanLineIn {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ── LAYOUT ──────────────────────────────────── */
+    .app {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 0 40px 100px;
+    }
+
+    /* ── HEADER ──────────────────────────────────── */
+    header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-weight: 700;
-      font-size: 1.1rem;
-      font-family: monospace;
-    }
-
-    .status-icon {
-      font-size: 1.3rem;
-    }
-
-    .commit-badge, .vuln-badge {
-      border-radius: 40px;
-      padding: 0.2rem 0.8rem;
-      font-size: 0.7rem;
-      font-weight: 600;
-    }
-    .commit-badge { background: #0f172a; border-left: 3px solid #3b82f6; }
-    .vuln-badge { background: #2c0f0f; border-left: 3px solid #ef4444; color: #fecaca; }
-
-    .section-title {
-      font-weight: 600;
-      margin: 1rem 1rem 0.5rem 1rem;
-      font-size: 0.85rem;
-      letter-spacing: -0.2px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .commit-list, .vuln-list {
-      padding: 0.2rem 1rem 0.8rem;
-    }
-
-    .commit-item, .vuln-item {
-      border-left: 3px solid;
-      padding: 0.6rem 0 0.6rem 0.8rem;
-      margin: 0.5rem 0;
-      background: rgba(0, 0, 0, 0.25);
-      border-radius: 18px;
-    }
-    .commit-item { border-left-color: #3b82f6; }
-    .vuln-item { border-left-color: #ef4444; }
-
-    .vuln-severity {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: 30px;
-      font-size: 0.65rem;
-      font-weight: bold;
-      margin-left: 8px;
-    }
-    .severity-critical { background: #7f1a1a; color: #ffe4e4; }
-    .severity-high { background: #b91c1c; color: white; }
-    .severity-medium { background: #b45309; color: #ffedd5; }
-    .severity-low { background: #2d3a2f; color: #bbf7d0; }
-
-    .resolution-box {
-      background: #0b1620;
-      padding: 0.6rem 1rem;
-      border-radius: 18px;
-      margin-top: 12px;
-      border-left: 4px solid #10b981;
-    }
-    .resolution-title {
-      font-weight: 700;
-      font-size: 0.75rem;
-      color: #86efac;
-      margin-bottom: 6px;
-    }
-    .resolution-steps {
-      font-size: 0.7rem;
-      font-family: monospace;
-      color: #cbd5e6;
-      line-height: 1.5;
-      white-space: pre-wrap;
-    }
-    .error-resolution {
-      background: #2a1215;
-      border-left-color: #ef4444;
-    }
-    .text-muted { color: #7c8aa0; font-size: 0.7rem; }
-    .flex-between {
-      display: flex;
       justify-content: space-between;
+      padding: 26px 0 22px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 36px;
+    }
+    .hd-left {
+      display: flex;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
+      gap: 18px;
     }
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: #111827e6;
-      backdrop-filter: blur(8px);
-      border-radius: 48px;
-      padding: 0.8rem 1.5rem;
-      border-left: 4px solid #f97316;
-      font-size: 0.85rem;
-      z-index: 1000;
-      pointer-events: none;
+    .hd-logo { width: 36px; height: 36px; object-fit: cover; display: block; }
+    .logo-sq { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+    .hd-title { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; color: var(--t1); }
+    .hd-right { display: flex; align-items: center; gap: 8px; }
+    .hd-divider { width: 1px; height: 16px; background: var(--border); }
+    .hd-sub { font-size: 12px; color: var(--t3); letter-spacing: 0.2px; }
+    .theme-btn {
+      width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      color: var(--t2); transition: background 0.12s, color 0.12s; flex-shrink: 0; padding: 0;
     }
-    a { color: #f9a66c; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .loading-spinner {
-      display: inline-block;
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(255,255,255,0.2);
-      border-top: 2px solid #f97316;
+    .theme-btn:hover { background: var(--bg); color: var(--t1); }
+    .access-wrap { position: relative; }
+    .access-btn {
+      width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, border-color 0.12s; flex-shrink: 0; padding: 0;
+    }
+    .access-btn:hover { background: var(--bg); }
+    .access-btn.open { border-color: var(--blue); }
+    .access-dot-glyph {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--t3); transition: background 0.15s;
+    }
+    .access-btn:hover .access-dot-glyph,
+    .access-btn.open  .access-dot-glyph { background: var(--blue); }
+    .access-dot-glyph.live { background: #22c55e !important; box-shadow: 0 0 0 2px rgba(34,197,94,0.18); }
+    .access-popover {
+      display: none; position: absolute; top: calc(100% + 10px); right: 0;
+      width: 400px; background: var(--surface); border: 1px solid var(--border);
+      padding: 20px 22px; z-index: 500; box-shadow: 0 8px 32px rgba(0,0,0,0.07);
+    }
+    .access-popover.open { display: block; animation: popIn 0.14s ease; }
+    @keyframes popIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    .pop-title { font-size: 10px; font-weight: 600; letter-spacing: 1.8px; text-transform: uppercase; color: var(--t3); margin-bottom: 14px; }
+    .pop-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 13px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--t2);
+    }
+    .s-dot {
+      width: 6px; height: 6px;
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      background: var(--t3);
+      flex-shrink: 0;
+    }
+    .s-dot.live {
+      background: #22c55e;
+      box-shadow: 0 0 0 2.5px rgba(34,197,94,0.18);
+    }
+
+    /* ── AUTH CARD ───────────────────────────────── */
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 28px 32px;
+      margin-bottom: 36px;
+    }
+    .auth-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--t3);
+      margin-bottom: 18px;
+    }
+    .auth-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .field { flex: 1; min-width: 220px; }
+    .field-lbl {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--t3);
+      margin-bottom: 7px;
+    }
+    .field-inp {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: var(--t1);
+      outline: none;
+      transition: border-color 0.12s;
+    }
+    .field-inp:focus { border-color: var(--blue); }
+    .field-inp::placeholder { color: var(--t3); }
+    .auth-hint {
+      margin-top: 11px;
+      font-size: 11px;
+      color: var(--t3);
+    }
+    .auth-hint code {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      background: var(--border-lt);
+      padding: 1px 5px;
+      color: var(--t2);
+    }
+
+    /* ── BUTTONS ─────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 18px;
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: opacity 0.12s, background 0.12s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn-primary { background: var(--t1); color: #f0f0ed; }
+    .btn-primary:hover { opacity: 0.82; }
+    .btn-ghost { background: transparent; border-color: var(--border); color: var(--t2); }
+    .btn-ghost:hover { background: var(--bg); }
+    .btn-danger { background: transparent; border-color: rgba(184,37,24,0.22); color: var(--red); }
+    .btn-danger:hover { background: rgba(184,37,24,0.05); }
+
+    /* ── STATS BAR ───────────────────────────────── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--border);
+      background: var(--border);
+      gap: 1px;
+      margin-bottom: 30px;
+    }
+    .stat-cell {
+      background: var(--surface);
+      padding: 22px 28px 20px;
+    }
+    .stat-num {
+      font-family: var(--mono);
+      font-size: 34px;
+      font-weight: 500;
+      color: var(--t1);
+      line-height: 1;
+      margin-bottom: 7px;
+      letter-spacing: -1px;
+    }
+    .stat-num.warn { color: var(--amber); }
+    .stat-num.danger { color: var(--red); }
+    .stat-num.sm {
+      font-size: 18px;
+      letter-spacing: 0;
+      padding-top: 8px;
+    }
+    .stat-lbl {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--t3);
+    }
+
+    /* ── DASH CONTROLS ───────────────────────────── */
+    .dash-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .sec-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--t3);
+    }
+
+    /* ── REPO GRID ───────────────────────────────── */
+    .repo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(540px, 1fr));
+      background: var(--border);
+      border: 1px solid var(--border);
+      gap: 1px;
+    }
+
+    /* ── REPO CARD ───────────────────────────────── */
+    .repo-card {
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      transition: background 0.1s;
+    }
+    .repo-card:hover { background: #faf9f7; }
+
+    .repo-strip {
+      height: 3px;
+      background: var(--border);
+    }
+    .repo-strip.green  { background: var(--green); }
+    .repo-strip.amber  { background: var(--amber); }
+    .repo-strip.red    { background: var(--red); }
+
+    .repo-head {
+      padding: 18px 22px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-lt);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .repo-name-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .r-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .r-dot.green  { background: var(--green); }
+    .r-dot.amber  { background: var(--amber); }
+    .r-dot.red    { background: var(--red); }
+
+    .repo-full-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--t1);
+    }
+    .repo-badges {
+      display: flex;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .rbadge {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      letter-spacing: 0.3px;
+    }
+    .rbadge-commit {
+      background: rgba(24,67,184,0.07);
+      border: 1px solid rgba(24,67,184,0.15);
+      color: var(--blue);
+    }
+    .rbadge-vuln {
+      background: rgba(184,37,24,0.07);
+      border: 1px solid rgba(184,37,24,0.15);
+      color: var(--red);
+    }
+
+    /* ── CARD SECTIONS ───────────────────────────── */
+    .card-sec {
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--border-lt);
+    }
+    .card-sec:last-child { border-bottom: none; }
+    .card-sec-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--t3);
+      margin-bottom: 10px;
+    }
+
+    .commit-row {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border-lt);
+    }
+    .commit-row:last-child { border-bottom: none; }
+    .commit-txt {
+      font-size: 12.5px;
+      color: var(--t1);
+      margin-bottom: 2px;
+      text-wrap: pretty;
+    }
+    .commit-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--t3);
+    }
+    .commit-meta a {
+      color: var(--blue);
+      text-decoration: none;
+      font-size: 10.5px;
+    }
+    .commit-meta a:hover { text-decoration: underline; }
+    .more-txt {
+      font-size: 11px;
+      color: var(--t3);
+      padding-top: 6px;
+    }
+
+    /* ── VULN ITEMS ──────────────────────────────── */
+    .vuln-row {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-lt);
+    }
+    .vuln-row:last-child { border-bottom: none; }
+    .vuln-top {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 3px;
+      flex-wrap: wrap;
+    }
+    .vuln-pkg {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--t1);
+    }
+    .sev {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      padding: 2px 7px;
+    }
+    .sev-critical { background: #5f1d1d; color: #fecaca; }
+    .sev-high   { background: rgba(184,37,24,0.10); border: 1px solid rgba(184,37,24,0.22); color: var(--red); }
+    .sev-medium { background: rgba(154,82,0,0.09);  border: 1px solid rgba(154,82,0,0.20);  color: var(--amber); }
+    .sev-low    { background: rgba(24,111,61,0.07); border: 1px solid rgba(24,111,61,0.18); color: var(--green); }
+
+    .vuln-summary { font-size: 12px; color: var(--t2); margin-bottom: 4px; text-wrap: pretty; }
+    .vuln-range   { font-family: var(--mono); font-size: 10.5px; color: var(--t3); margin-bottom: 8px; }
+
+    .remed-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      padding: 11px 14px;
+      margin-top: 6px;
+    }
+    .remed-box.err { border-left-color: var(--red); }
+    .remed-title {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 7px;
+    }
+    .remed-box.err .remed-title { color: var(--red); }
+    .remed-steps {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--t2);
+      white-space: pre-wrap;
+      line-height: 1.75;
+    }
+    .remed-link {
+      display: inline-block;
+      margin-top: 7px;
+      font-size: 11px;
+      color: var(--blue);
+      text-decoration: none;
+      font-family: var(--mono);
+    }
+    .remed-link:hover { text-decoration: underline; }
+
+    /* ── ERROR BLOCK ─────────────────────────────── */
+    .err-block {
+      margin: 0 22px 10px;
+      background: rgba(184,37,24,0.04);
+      border: 1px solid rgba(184,37,24,0.14);
+      padding: 9px 13px;
+    }
+    .err-txt { font-size: 12px; color: var(--red); }
+
+    /* ── HEALTHY STATE ───────────────────────────── */
+    .all-clear {
+      padding: 20px 22px;
+      font-size: 11px;
+      color: var(--t3);
+      letter-spacing: 0.3px;
+      text-align: center;
+    }
+
+    /* ── EMPTY STATES ────────────────────────────── */
+    .empty-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 60px;
+      text-align: center;
+    }
+    .empty-title { font-size: 14px; font-weight: 500; color: var(--t2); margin-bottom: 6px; }
+    .empty-sub   { font-size: 12px; color: var(--t3); }
+
+    /* ── REPO TILES ──────────────────────────────── */
+    .repo-tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      background: var(--border); border: 1px solid var(--border); gap: 1px;
+    }
+    .repo-tile {
+      background: var(--surface); aspect-ratio: 1 / 1;
+      position: relative; cursor: pointer; overflow: hidden;
+      display: flex; flex-direction: column; justify-content: flex-end; padding: 16px;
+    }
+    .tile-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; }
+    .tile-status { position: absolute; top: 14px; right: 14px; width: 7px; height: 7px; border-radius: 50%; z-index: 1; }
+    .tile-status.green { background: var(--green); }
+    .tile-status.amber { background: var(--amber); }
+    .tile-status.red   { background: var(--red); }
+    .tile-owner { font-family: var(--mono); font-size: 9px; color: var(--t3); margin-bottom: 2px; position: relative; z-index: 1; }
+    .tile-repo  { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--t1); line-height: 1.3; word-break: break-word; position: relative; z-index: 1; }
+    .tile-hover {
+      position: absolute; inset: 0; background: var(--t1); padding: 16px;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      opacity: 0; transform: translateY(5px);
+      transition: opacity 0.16s ease, transform 0.16s ease; pointer-events: none;
+    }
+    .repo-tile:hover .tile-hover { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .tile-hover-title { font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: #f0f0ed; margin-bottom: 8px; line-height: 1.5; }
+    .tile-hover-stats { display: flex; flex-direction: column; gap: 3px; font-size: 10px; font-family: var(--mono); }
+    .tile-stat-neutral { color: rgba(240,240,237,0.45); }
+    .tile-stat-danger  { color: #fca5a5; }
+    .tile-stat-ok      { color: #86efac; }
+    .tile-stat-err     { color: #fca5a5; }
+
+    /* ── DETAIL PANEL ───────────────────────────── */
+    .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.10); z-index: 800; opacity: 0; pointer-events: none; transition: opacity 0.22s ease; }
+    .detail-overlay.open { opacity: 1; pointer-events: auto; }
+    .detail-panel {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 500px; max-width: 92vw;
+      background: var(--surface); border-left: 1px solid var(--border);
+      transform: translateX(100%); transition: transform 0.26s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto; z-index: 801;
+    }
+    .detail-panel.open { transform: translateX(0); }
+    .detail-head {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      position: sticky; top: 0; background: var(--surface); z-index: 2;
+    }
+    .detail-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .detail-repo-nm { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .detail-close { width: 28px; height: 28px; border: 1px solid var(--border); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--t2); font-size: 14px; flex-shrink: 0; }
+    .detail-close:hover { background: var(--bg); }
+    .detail-sec { padding: 18px 24px; border-bottom: 1px solid var(--border-lt); }
+    .detail-sec:last-child { border-bottom: none; }
+    .detail-sec-lbl { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); margin-bottom: 12px; }
+    .detail-commit { padding: 8px 0; border-bottom: 1px solid var(--border-lt); }
+    .detail-commit:last-child { border-bottom: none; }
+    .detail-vuln { padding: 11px 0; border-bottom: 1px solid var(--border-lt); }
+    .detail-vuln:last-child { border-bottom: none; }
+    .detail-empty { font-size: 12px; color: var(--t3); }
+    .detail-err   { font-size: 12px; color: var(--red); }
+    .detail-err a { color: var(--blue); }
+
+    /* ── TOAST ───────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 26px;
+      right: 26px;
+      background: var(--t1);
+      color: #f0f0ed;
+      padding: 11px 18px;
+      font-size: 12px;
+      font-weight: 500;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      letter-spacing: 0.2px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.err  { background: var(--red); }
+
+    /* ── LOADING INLINE ──────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 13px; height: 13px;
+      border: 1.5px solid rgba(0,0,0,0.12);
+      border-top-color: var(--t1);
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .error-msg {
-      background: rgba(127,29,29,0.6);
-      padding: 0.6rem;
-      border-radius: 16px;
-      margin: 0.5rem 1rem;
-      font-size: 0.75rem;
+
+    /* ── RESPONSIVE ──────────────────────────────── */
+    /* ── DARK THEME ──────────────────────────────── */
+    html[data-theme="dark"] {
+      --bg:        #0e0e0c;
+      --surface:   #161614;
+      --border:    #2c2c29;
+      --border-lt: #222220;
+      --t1:        #edede9;
+      --t2:        #828280;
+      --t3:        #464644;
     }
-    @media (max-width: 680px) {
-      body { padding: 1rem; }
-      .repo-grid { grid-template-columns: 1fr; }
+
+    /* ── COMPACT DENSITY ────────────────────────────── */
+    html[data-density="compact"] .auth-card   { padding: 18px 24px; }
+    html[data-density="compact"] .stat-cell   { padding: 15px 20px; }
+    html[data-density="compact"] .stat-num    { font-size: 24px; }
+    html[data-density="compact"] .stat-num.sm { font-size: 14px; }
+    html[data-density="compact"] .repo-head   { padding: 12px 18px 10px; }
+    html[data-density="compact"] .card-sec    { padding: 10px 18px; }
+    html[data-density="compact"] header       { padding: 18px 0 14px; margin-bottom: 24px; }
+    html[data-density="compact"] .commit-row  { padding: 5px 0; }
+    html[data-density="compact"] .vuln-row    { padding: 8px 0; }
+
+    @media (max-width: 800px) {
+      .app { padding: 0 18px 80px; }
+      .stats-bar { grid-template-columns: 1fr 1fr; }
+      .stats-bar .stat-cell:nth-child(2) { border-right: none; }
+      .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+      .hd-sub { display: none; }
+      .hd-divider { display: none; }
+      .access-popover { width: calc(100vw - 36px); right: -8px; }
+      .detail-panel { width: 100vw; max-width: 100vw; }
     }
   </style>
 </head>
 <body>
-<div class="app-container">
-  <div class="hero">
-    <div class="title-section">
-      <h1>🛡️ GitSphere Sentinel</h1>
-      <p>vulnerability remediation engine · step‑by‑step fixes for every issue</p>
-    </div>
-    <div class="badge" id="liveBadge">⚡ auto-remediation advisor</div>
-  </div>
 
-  <div class="card auth-panel" id="authPanel">
-    <div><span style="font-weight:600;">🔐 GitHub access token</span> <span style="font-size:0.7rem;">· needs <code>repo</code> + <code>security_events</code> (for vulns)</span></div>
-    <div class="input-group">
-      <div class="input-field">
-        <label>🔑 PERSONAL ACCESS TOKEN</label>
-        <input type="password" id="githubToken" placeholder="ghp_xxx or github_pat_xxx" autocomplete="off">
-      </div>
-      <div>
-        <button id="connectBtn" class="primary">⟳ CONNECT & SCAN</button>
-        <button id="clearStorageBtn" class="danger-btn" style="margin-left:8px;">🗑 reset</button>
-      </div>
-    </div>
-    <div style="font-size:0.7rem; margin-top: 12px; color:#6c86a3;">
-      💡 Each vulnerability includes a <strong>resolution plan</strong> with exact commands. Errors show troubleshooting steps.
-    </div>
+<!-- ── SCAN OVERLAY ──────────────────────────────────────────────────────── -->
+<div id="scanOverlay">
+  <div class="scan-brand">
+    <img src="LOGO.png" alt="Sentinel">
+    <span class="scan-brand-text">Sentinel</span>
   </div>
-
-  <div id="dashboardArea" style="display: none;">
-    <div class="flex-between" style="margin-bottom: 0.8rem;">
-      <div class="stats-row">
-        <div class="stat-card"><span id="repoCount">0</span> repositories</div>
-        <div class="stat-card"><span id="totalChanges">0</span> new commits</div>
-        <div class="stat-card"><span id="totalVulns">0</span> open vulnerabilities</div>
-        <div class="stat-card">last scan: <span id="lastSyncTime">—</span></div>
-      </div>
-      <button id="manualRefreshBtn" class="primary" style="background:#1f2a3a;">🔄 Rescan + Remediation advice</button>
-    </div>
-    <div id="repoGridContainer" class="repo-grid"></div>
-    <div id="loadingGlobal" style="display: none; text-align: center; padding: 2rem;"><div class="loading-spinner"></div> auditing & building fixes...</div>
-  </div>
-
-  <div id="initialMessage" class="card" style="text-align: center; opacity: 0.8;">
-    ✨ Enter GitHub token → GitSphere will detect vulnerabilities and provide step‑by‑step resolution guides.
+  <div id="scanTerminal" class="scan-terminal"></div>
+  <div class="scan-prog-wrap">
+    <div id="scanProgBar"></div>
   </div>
 </div>
 
+<!-- ── APP ──────────────────────────────────────────────────────────────── -->
+<div class="app">
+
+  <header>
+    <div class="hd-left">
+      <div class="logo-sq"><img src="LOGO.png" alt="Sentinel" class="hd-logo"></div>
+      <span class="hd-title">Sentinel</span>
+      <div class="hd-divider"></div>
+      <span class="hd-sub">Automated Remediation Hub</span>
+    </div>
+    <div class="hd-right">
+      <button class="theme-btn" id="themeBtn" title="Toggle theme"></button>
+      <div class="access-wrap">
+        <button class="access-btn" id="accessDotBtn" title="GitHub Access">
+          <span class="access-dot-glyph" id="accessGlyph"></span>
+        </button>
+        <div class="access-popover" id="accessPopover">
+          <div class="pop-title">GitHub Access Token</div>
+          <label class="field-lbl" for="githubToken">Personal Access Token</label>
+          <input type="password" id="githubToken" class="field-inp" style="margin-bottom:10px" placeholder="ghp_xxx  or  github_pat_xxx" autocomplete="off">
+          <div class="pop-actions">
+            <button class="btn btn-primary" id="connectBtn">Connect &amp; Scan</button>
+            <button class="btn btn-danger"  id="clearStorageBtn">Reset</button>
+          </div>
+          <div class="auth-hint" style="margin-top:12px">
+            Requires <code>repo</code> and <code>security_events</code> scopes
+          </div>
+        </div>
+      </div>
+      <div class="status-pill">
+        <div class="s-dot" id="sDot"></div>
+        <span id="sText">Not connected</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="empty-card" id="initialMessage">
+    <div class="empty-title">No repositories loaded</div>
+    <div class="empty-sub">Click the dot in the header to enter your GitHub token and begin scanning</div>
+  </div>
+
+  <div id="dashboardArea" style="display:none;">
+    <div class="stats-bar">
+      <div class="stat-cell">
+        <div class="stat-num" id="repoCount">—</div>
+        <div class="stat-lbl">Repositories</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num" id="totalChanges">—</div>
+        <div class="stat-lbl">New Commits</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num" id="totalVulns">—</div>
+        <div class="stat-lbl">Open Vulnerabilities</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-num sm" id="lastSyncTime">—</div>
+        <div class="stat-lbl">Last Scan</div>
+      </div>
+    </div>
+
+    <div class="dash-controls">
+      <span class="sec-label">Repositories</span>
+      <button class="btn btn-ghost" id="manualRefreshBtn">Rescan + Remediation</button>
+    </div>
+
+    <div id="repoGridContainer" class="repo-tiles"></div>
+  </div>
+
+</div>
+
+<!-- ── DETAIL PANEL ─────────────────────────────────────────────────────── -->
+<div class="detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-head">
+    <div class="detail-head-left">
+      <div class="r-dot green" id="detailStatusDot"></div>
+      <span class="detail-repo-nm" id="detailRepoNm"></span>
+    </div>
+    <button class="detail-close" onclick="closeDetail()">&#10005;</button>
+  </div>
+  <div class="detail-sec">
+    <div class="detail-sec-lbl">Last 5 Commits</div>
+    <div id="detailCommitsBody"></div>
+  </div>
+  <div class="detail-sec">
+    <div class="detail-sec-lbl">Vulnerabilities &amp; Remediation</div>
+    <div id="detailVulnsBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="tweaks-root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent":  "#B82518",
+  "density": "compact"
+}/*EDITMODE-END*/;
+
+function SentinelTweaks() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-density', t.density);
+    root.style.setProperty('--blue', t.accent);
+  }, [t.accent, t.density]);
+
+  return (
+    <TweaksPanel>
+      <TweakSection label="Appearance" />
+      <TweakColor
+        label="Accent"
+        value={t.accent}
+        options={['#1843B8', '#B82518', '#0A7568', '#6D3FA0']}
+        onChange={v => setTweak('accent', v)}
+      />
+      <TweakSection label="Layout" />
+      <TweakRadio
+        label="Density"
+        value={t.density}
+        options={['compact', 'regular']}
+        onChange={v => setTweak('density', v)}
+      />
+    </TweaksPanel>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('tweaks-root')).render(
+  React.createElement(SentinelTweaks)
+);
+</script>
+
 <script>
-  // ----------------------------- STORAGE & STATE ---------------------------------
-  const STORAGE_KEYS = {
-    TOKEN: 'gitsphere_sentinel_token',
-    REPOS_META: 'gitsphere_sentinel_repos',
-  };
+// ── SCAN ANIMATION ────────────────────────────────────────────────────────
+const overlay   = document.getElementById('scanOverlay');
+const terminal  = document.getElementById('scanTerminal');
+const progBar   = document.getElementById('scanProgBar');
+let   lineIdx   = 0;
 
-  let currentState = {
-    token: null,
-    repos: [],
-    lastFetchMap: {},
-    lastOverallSync: null
-  };
+function addLine(msg, cls = '') {
+  const ln = ++lineIdx;
+  const el = document.createElement('div');
+  el.className = `scan-line ${cls}`;
+  el.innerHTML =
+    `<span class="scan-ln">${String(ln).padStart(2,'0')}</span>` +
+    `<span class="scan-arr">›</span>` +
+    `<span class="scan-msg">${msg}</span>`;
+  terminal.appendChild(el);
+  // cap at 14 lines
+  const all = terminal.querySelectorAll('.scan-line');
+  if (all.length > 14) all[0].remove();
+}
 
-  // DOM elements
-  const tokenInput = document.getElementById('githubToken');
-  const connectBtn = document.getElementById('connectBtn');
-  const clearBtn = document.getElementById('clearStorageBtn');
-  const dashboardArea = document.getElementById('dashboardArea');
-  const initialMessageDiv = document.getElementById('initialMessage');
-  const repoGridContainer = document.getElementById('repoGridContainer');
-  const repoCountSpan = document.getElementById('repoCount');
-  const totalChangesSpan = document.getElementById('totalChanges');
-  const totalVulnsSpan = document.getElementById('totalVulns');
-  const lastSyncTimeSpan = document.getElementById('lastSyncTime');
-  const manualRefreshBtn = document.getElementById('manualRefreshBtn');
-  const loadingGlobalDiv = document.getElementById('loadingGlobal');
+function setProgress(pct) {
+  progBar.style.width = pct + '%';
+}
 
-  function showToast(msg, isError = false) {
-    let toast = document.querySelector('.toast');
-    if(toast) toast.remove();
-    const newToast = document.createElement('div');
-    newToast.className = 'toast';
-    newToast.style.borderLeftColor = isError ? '#ef4444' : '#f97316';
-    newToast.innerText = msg;
-    document.body.appendChild(newToast);
-    setTimeout(() => newToast.remove(), 4000);
+function showOverlay() {
+  lineIdx = 0;
+  terminal.innerHTML = '';
+  setProgress(0);
+  overlay.style.opacity  = '1';
+  overlay.style.display  = 'flex';
+  overlay.classList.remove('exiting');
+}
+
+function hideOverlay() {
+  return new Promise(res => {
+    overlay.classList.add('exiting');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      overlay.classList.remove('exiting');
+      res();
+    }, 580);
+  });
+}
+
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+const SK = { TOKEN: 'sentinel_token', META: 'sentinel_meta' };
+let state = { token: null, repos: [], fetchMap: {}, lastSync: null };
+
+// DOM
+const tokenInput  = document.getElementById('githubToken');
+const connectBtn  = document.getElementById('connectBtn');
+const clearBtn    = document.getElementById('clearStorageBtn');
+const dashboard   = document.getElementById('dashboardArea');
+const initMsg     = document.getElementById('initialMessage');
+const grid        = document.getElementById('repoGridContainer');
+const repoCountEl = document.getElementById('repoCount');
+const changesEl   = document.getElementById('totalChanges');
+const vulnsEl     = document.getElementById('totalVulns');
+const syncEl      = document.getElementById('lastSyncTime');
+const sDot        = document.getElementById('sDot');
+const sText       = document.getElementById('sText');
+
+function setConnected(n) {
+  sDot.classList.add('live');
+  sText.textContent = `${n} repos`;
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+}
+
+// ── GITHUB API ────────────────────────────────────────────────────────────
+async function apiFetch(url, token, opts = {}) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      ...(opts.headers || {})
+    }
+  });
+  if (res.status === 403 && res.headers.get('X-RateLimit-Remaining') === '0')
+    throw new Error('Rate limit exceeded. Please wait a moment.');
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`GitHub API ${res.status}: ${txt.slice(0, 120)}`);
+  }
+  return res;
+}
+
+async function getAllRepos(token) {
+  let page = 1, all = [], more = true;
+  while (more) {
+    const res = await apiFetch(`https://api.github.com/user/repos?per_page=100&page=${page}&sort=full_name`, token);
+    const data = await res.json();
+    if (!data.length) break;
+    all.push(...data);
+    more = (res.headers.get('Link') || '').includes('rel="next"');
+    page++;
+  }
+  return all.map(r => ({
+    fullName: r.full_name, owner: r.owner.login,
+    name: r.name, branch: r.default_branch
+  }));
+}
+
+async function getLatestDate(token, owner, repo, branch) {
+  try {
+    const res   = await apiFetch(`https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=1`, token);
+    const data  = await res.json();
+    return data?.[0]?.commit?.committer?.date || new Date().toISOString();
+  } catch { return new Date().toISOString(); }
+}
+
+async function getCommitsSince(token, owner, repo, branch, since) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=40&since=${encodeURIComponent(since)}`;
+  const res  = await apiFetch(url, token);
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map(c => ({
+    sha: c.sha,
+    message: c.commit.message.split('\n')[0],
+    author:  c.commit.author?.name || c.author?.login || 'unknown',
+    url:     c.html_url
+  }));
+}
+
+async function getVulns(token, owner, repo) {
+  try {
+    const res  = await apiFetch(`https://api.github.com/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=50`, token);
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(a => ({
+      id:        a.number,
+      summary:   a.security_advisory?.summary || 'Unknown vulnerability',
+      severity:  a.security_advisory?.severity || 'unknown',
+      pkg:       a.security_vulnerability?.package?.name || 'unknown',
+      range:     a.security_vulnerability?.vulnerable_version_range || 'unknown',
+      fixed:     a.security_vulnerability?.first_patched_version?.identifier || null,
+      url:       a.html_url,
+      ecosystem: a.security_vulnerability?.package?.ecosystem || ''
+    }));
+  } catch(err) {
+    if (/403|404|security_events/.test(err.message)) return { missingScope: true };
+    return { error: err.message };
+  }
+}
+
+// ── REMEDIATION ───────────────────────────────────────────────────────────
+function fixSteps(v) {
+  const eco = v.ecosystem?.toLowerCase() || '';
+  let cmd;
+  if (eco === 'npm' || eco.includes('npm'))
+    cmd = `npm update ${v.pkg}\nnpm audit fix\n# Or pin version:\nnpm install ${v.pkg}@${v.fixed || 'latest'}`;
+  else if (eco === 'pip' || eco.includes('pip'))
+    cmd = `pip install --upgrade ${v.pkg}\n# Or pin:\npip install ${v.pkg}==${v.fixed || 'latest'}`;
+  else if (eco.includes('maven'))
+    cmd = `Update pom.xml <version> for ${v.pkg} to ${v.fixed || 'latest'}\nmvn versions:use-latest-versions -Dincludes=${v.pkg}`;
+  else if (eco.includes('go'))
+    cmd = `go get -u ${v.pkg}\ngo mod tidy`;
+  else
+    cmd = `Upgrade ${v.pkg} to ${v.fixed || 'patched version'} via your package manager`;
+
+  let out = `1. Locate ${v.pkg} in your dependency manifest\n2. Run:\n   ${cmd.replace(/\n/g, '\n   ')}\n3. Run your test suite\n4. Commit and push`;
+  if (!v.fixed) out += `\n\n# No patch available yet — check advisory for workarounds`;
+  return out;
+}
+
+function tokenErrSteps(type, detail = '') {
+  if (type === 'commit')
+    return `Commit fetch failed\n\n— Verify token has 'repo' scope\n— Token may be expired:\n  github.com/settings/tokens`;
+  if (type === 'scope')
+    return `Missing security_events scope\n\n1. GitHub → Settings → Developer settings\n   → Personal access tokens\n2. Edit token, enable 'security_events'\n3. Reset app and reconnect`;
+  return `API error: ${detail}\n\n— Verify token validity and scopes\n— Check repository access permissions`;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, m =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function renderGrid(details) {
+  if (!details.length) {
+    grid.innerHTML = `<div class="empty-card" style="border:none; grid-column:1/-1">
+      <div class="empty-title">No repositories found</div></div>`;
+    return;
+  }
+  window._scanDetails = details;
+  grid.innerHTML = details.map((d, i) => {
+    const repo = state.repos.find(r => r.fullName === d.fullName);
+    if (!repo) return '';
+    const vulns = d.vulns || [];
+    let color = 'green';
+    if (d.hasError)                          color = 'red';
+    else if (vulns.length || d.missingScope) color = 'amber';
+
+    const parts = repo.fullName.split('/');
+    const owner = parts[0], name = parts[1] || parts[0];
+
+    const stats = [];
+    if (d.commits.length) stats.push({ t: `${d.commits.length} commit${d.commits.length!==1?'s':''}`, c: 'tile-stat-neutral' });
+    if (vulns.length)     stats.push({ t: `${vulns.length} vuln${vulns.length!==1?'s':''}`, c: 'tile-stat-danger' });
+    if (d.missingScope)   stats.push({ t: 'missing scope', c: 'tile-stat-err' });
+    if (d.hasError && !d.missingScope) stats.push({ t: 'scan error', c: 'tile-stat-err' });
+    if (!stats.length)    stats.push({ t: 'all clear', c: 'tile-stat-ok' });
+
+    return `<div class="repo-tile" onclick="openDetail(${i})">
+      <canvas class="tile-canvas" data-ci="${i % 8}"></canvas>
+      <div class="tile-status ${color}"></div>
+      <div class="tile-owner">${esc(owner)}/</div>
+      <div class="tile-repo">${esc(name)}</div>
+      <div class="tile-hover">
+        <div class="tile-hover-title">${esc(repo.fullName)}</div>
+        <div class="tile-hover-stats">
+          ${stats.map(s => '<span class="' + s.c + '">' + s.t + '</span>').join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  requestAnimationFrame(startMatrix);
+}
+
+function renderBaseline() {
+  repoCountEl.textContent = state.repos.length;
+  changesEl.textContent   = '0';
+  vulnsEl.textContent     = '0';
+  vulnsEl.className       = 'stat-num';
+  syncEl.textContent      = state.lastSync ? new Date(state.lastSync).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—';
+  grid.innerHTML = `<div class="empty-card" style="border:none; padding:32px 60px; grid-column:1/-1">
+    <div class="empty-sub">Click Rescan to detect vulnerabilities across all repositories</div></div>`;
+}
+
+// ── CORE SCAN ─────────────────────────────────────────────────────────────
+async function runScan() {
+  const token = state.token;
+  const repos  = [...state.repos];
+  const oldMap = { ...state.fetchMap };
+  const newMap = { ...oldMap };
+  const results = [];
+  const BATCH = 3;
+
+  for (let i = 0; i < repos.length; i += BATCH) {
+    const batch = repos.slice(i, i + BATCH);
+    const chunk = await Promise.all(batch.map(async repo => {
+      const { fullName, owner, name, branch } = repo;
+      let commits = [], commitError = null;
+      try {
+        if (oldMap[fullName]) {
+          commits = await getCommitsSince(token, owner, name, branch, oldMap[fullName]);
+        }
+        const d = await getLatestDate(token, owner, name, branch);
+        newMap[fullName] = commits.length && commits[0].date ? commits[0].date : d;
+      } catch(e) {
+        commitError = e.message;
+        newMap[fullName] = oldMap[fullName] || new Date().toISOString();
+      }
+
+      let vulns = [], vulnError = null, missingScope = false;
+      const vd = await getVulns(token, owner, name);
+      if (vd?.missingScope)      { missingScope = true; vulnError = 'Missing security_events scope'; }
+      else if (vd?.error)        { vulnError = vd.error; }
+      else if (Array.isArray(vd)) vulns = vd;
+
+      return { fullName, commits, vulns, commitError, vulnError, missingScope,
+               hasError: !!(commitError || (vulnError && !missingScope)) };
+    }));
+    chunk.forEach(r => results.push(r));
   }
 
-  async function fetchWithToken(url, token, options = {}) {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        ...(options.headers || {})
+  state.fetchMap = newMap;
+  state.lastSync = new Date().toISOString();
+  persist();
+
+  const totalCommits = results.reduce((a,r) => a + r.commits.length, 0);
+  const totalVuln    = results.reduce((a,r) => a + r.vulns.length, 0);
+
+  changesEl.textContent = totalCommits;
+  vulnsEl.textContent   = totalVuln;
+  vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
+  syncEl.textContent    = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+  renderGrid(results);
+  return { totalVuln, totalCommits };
+}
+
+// ── FULL INIT + ANIMATED SCAN ─────────────────────────────────────────────
+async function fullInit(token) {
+  showOverlay();
+  try {
+    await wait(180); addLine('Initializing Sentinel', 'hl');
+    await wait(260); addLine('Connecting to GitHub API…'); setProgress(5);
+    await wait(350); addLine(`Authenticating token ${token.slice(0,8)}…`, 'hl');
+
+    let repos;
+    try { repos = await getAllRepos(token); }
+    catch(err) {
+      addLine('Authentication failed — ' + err.message, 'err');
+      await wait(1600); await hideOverlay();
+      toast(err.message, true); return;
+    }
+
+    if (!repos.length) {
+      addLine('No repositories found', 'err');
+      await wait(1200); await hideOverlay();
+      toast('No repositories found', true); return;
+    }
+
+    addLine(`Token verified — ${repos.length} repositories found`, 'ok'); setProgress(18);
+    await wait(180);
+    addLine('Caching commit baselines…', 'hl'); setProgress(22);
+
+    const dateMap = {};
+    for (let i = 0; i < repos.length; i += 5) {
+      const batch = repos.slice(i, i+5);
+      await Promise.all(batch.map(async r => {
+        dateMap[r.fullName] = await getLatestDate(token, r.owner, r.name, r.branch);
+      }));
+      batch.forEach(r => addLine(`Index  ${r.fullName}`));
+      setProgress(22 + Math.round(((i+5)/repos.length) * 28));
+      await wait(50);
+    }
+
+    state.repos = repos; state.fetchMap = dateMap;
+    state.token = token; state.lastSync = new Date().toISOString();
+    persist();
+
+    // Show dashboard skeleton
+    dashboard.style.display = 'block';
+    initMsg.style.display   = 'none';
+    renderBaseline();
+    repoCountEl.textContent = repos.length;
+    setConnected(repos.length);
+
+    addLine(`Baseline cached — scanning for vulnerabilities`, 'hl'); setProgress(52);
+    await wait(200);
+
+    // Vuln scan inline
+    const BATCH = 3;
+    const results = [];
+    for (let i = 0; i < repos.length; i += BATCH) {
+      const batch = repos.slice(i, i+BATCH);
+      const chunk = await Promise.all(batch.map(async repo => {
+        const { fullName, owner, name, branch } = repo;
+        let vulns = [], vulnError = null, missingScope = false;
+        const vd = await getVulns(token, owner, name);
+        if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
+        else if (vd?.error)         { vulnError = vd.error; }
+        else if (Array.isArray(vd)) vulns = vd;
+        return { fullName, commits:[], vulns, commitError:null, vulnError, missingScope,
+                 hasError: !!(vulnError && !missingScope) };
+      }));
+      chunk.forEach(r => results.push(r));
+      batch.forEach(r => addLine(`Scan   ${r.fullName}`));
+      setProgress(52 + Math.round(((i+BATCH)/repos.length) * 44));
+      await wait(60);
+    }
+
+    const totalVuln = results.reduce((a,r) => a + r.vulns.length, 0);
+    setProgress(100);
+    await wait(220);
+    addLine(
+      totalVuln > 0
+        ? `Scan complete — ${totalVuln} vulnerabilit${totalVuln!==1?'ies':'y'} found`
+        : `Scan complete — no vulnerabilities detected`,
+      totalVuln > 0 ? 'hl' : 'ok'
+    );
+    await wait(900);
+    await hideOverlay();
+
+    // Update stats & render
+    changesEl.textContent = '0';
+    vulnsEl.textContent   = totalVuln;
+    vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
+    syncEl.textContent    = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    renderGrid(results);
+
+    toast(totalVuln > 0
+      ? `${totalVuln} vulnerabilit${totalVuln!==1?'ies':'y'} found — remediation plans embedded below`
+      : 'Scan complete — all repositories are secure');
+
+  } catch(err) {
+    addLine('Unexpected error: ' + err.message, 'err');
+    await wait(1600); await hideOverlay();
+    toast(err.message, true);
+  }
+}
+
+// ── RESCAN ────────────────────────────────────────────────────────────────
+document.getElementById('manualRefreshBtn').addEventListener('click', async () => {
+  if (!state.token || !state.repos.length) { toast('Connect first', true); return; }
+  showOverlay();
+  addLine('Initiating rescan', 'hl');
+  await wait(200);
+  addLine(`Loading ${state.repos.length} repositories from cache`); setProgress(8);
+  await wait(240);
+  addLine('Scanning for new commits and vulnerabilities…', 'hl'); setProgress(14);
+  await wait(200);
+
+  const result = await runScan();
+  setProgress(100);
+  await wait(200);
+  addLine(
+    result.totalVuln > 0
+      ? `Rescan complete — ${result.totalVuln} vulnerabilit${result.totalVuln!==1?'ies':'y'} found`
+      : `Rescan complete — no vulnerabilities detected`,
+    result.totalVuln > 0 ? 'hl' : 'ok'
+  );
+  await wait(820);
+  await hideOverlay();
+  toast(result.totalVuln > 0 ? `${result.totalVuln} vulnerabilit${result.totalVuln!==1?'ies':'y'} found` : 'All clear');
+});
+
+// ── PERSIST & RESTORE ─────────────────────────────────────────────────────
+function persist() {
+  if (state.token) localStorage.setItem(SK.TOKEN, state.token);
+  localStorage.setItem(SK.META, JSON.stringify({
+    repos: state.repos, fetchMap: state.fetchMap, lastSync: state.lastSync
+  }));
+}
+
+function restore() {
+  const tok  = localStorage.getItem(SK.TOKEN);
+  const meta = localStorage.getItem(SK.META);
+  if (!tok || !meta) return false;
+  try {
+    const p = JSON.parse(meta);
+    state = { token: tok, repos: p.repos||[], fetchMap: p.fetchMap||{}, lastSync: p.lastSync||null };
+    tokenInput.value = tok;
+    if (!state.repos.length) return false;
+
+    dashboard.style.display = 'block';
+    initMsg.style.display   = 'none';
+    renderBaseline();
+    setConnected(state.repos.length);
+
+    // Auto-rescan on load
+    setTimeout(async () => {
+      showOverlay();
+      addLine('Resuming session', 'hl');
+      await wait(200);
+      addLine(`Loaded ${state.repos.length} repositories from cache`); setProgress(12);
+      await wait(280);
+      addLine('Refreshing vulnerability scan…', 'hl'); setProgress(18);
+      await wait(200);
+      const result = await runScan();
+      setProgress(100);
+      await wait(180);
+      addLine(
+        result.totalVuln > 0
+          ? `${result.totalVuln} vulnerabilit${result.totalVuln!==1?'ies':'y'} detected`
+          : 'No vulnerabilities detected',
+        result.totalVuln > 0 ? 'hl' : 'ok'
+      );
+      await wait(780);
+      await hideOverlay();
+    }, 400);
+    return true;
+  } catch { return false; }
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────────────
+connectBtn.addEventListener('click', async () => {
+  const tok = tokenInput.value.trim();
+  if (!tok) { toast('Enter a GitHub personal access token', true); return; }
+  await fullInit(tok);
+});
+tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') connectBtn.click(); });
+clearBtn.addEventListener('click', () => {
+  localStorage.removeItem(SK.TOKEN);
+  localStorage.removeItem(SK.META);
+  state = { token:null, repos:[], fetchMap:{}, lastSync:null };
+  tokenInput.value = '';
+  dashboard.style.display = 'none';
+  initMsg.style.display   = 'block';
+  initMsg.innerHTML       = `<div class="empty-title">Session cleared</div><div class="empty-sub">Enter a new token to reconnect</div>`;
+  sDot.classList.remove('live');
+  sText.textContent = 'Not connected';
+  toast('Session cleared');
+});
+
+// ── BOOT ──────────────────────────────────────────────────────────────────
+if (!restore()) {
+  dashboard.style.display = 'none';
+  initMsg.style.display   = 'block';
+}
+
+// ── THEME TOGGLE ─────────────────────────────────────────────────────────
+const ICON_MOON = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M10.5 8.5a5.5 5.5 0 1 1-6-6 4 4 0 0 0 6 6z"/></svg>';
+const ICON_SUN  = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="2"/><line x1="6.5" y1="1" x2="6.5" y2="2.5"/><line x1="6.5" y1="10.5" x2="6.5" y2="12"/><line x1="1" y1="6.5" x2="2.5" y2="6.5"/><line x1="10.5" y1="6.5" x2="12" y2="6.5"/><line x1="2.8" y1="2.8" x2="3.8" y2="3.8"/><line x1="9.2" y1="9.2" x2="10.2" y2="10.2"/><line x1="10.2" y1="2.8" x2="9.2" y2="3.8"/><line x1="3.8" y1="9.2" x2="2.8" y2="10.2"/></svg>';
+
+let activeTheme = localStorage.getItem('sentinel_theme') || 'light';
+const themeBtn  = document.getElementById('themeBtn');
+
+function applyTheme(t) {
+  activeTheme = t;
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('sentinel_theme', t);
+  if (themeBtn) themeBtn.innerHTML = t === 'dark' ? ICON_SUN : ICON_MOON;
+}
+applyTheme(activeTheme);
+themeBtn.addEventListener('click', () => applyTheme(activeTheme === 'dark' ? 'light' : 'dark'));
+
+// ── ACCESS POPOVER ────────────────────────────────────────────────────────
+const accessDotBtn  = document.getElementById('accessDotBtn');
+const accessPopover = document.getElementById('accessPopover');
+const accessGlyph   = document.getElementById('accessGlyph');
+
+function syncGlyph() {
+  if (state.token && state.repos.length) accessGlyph.classList.add('live');
+  else accessGlyph.classList.remove('live');
+}
+
+accessDotBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const opening = !accessPopover.classList.contains('open');
+  accessPopover.classList.toggle('open', opening);
+  accessDotBtn.classList.toggle('open', opening);
+  if (opening) tokenInput.focus();
+});
+
+document.addEventListener('click', e => {
+  if (!accessPopover.contains(e.target) && e.target !== accessDotBtn) {
+    accessPopover.classList.remove('open');
+    accessDotBtn.classList.remove('open');
+  }
+});
+
+connectBtn.addEventListener('click', () => {
+  setTimeout(() => { accessPopover.classList.remove('open'); accessDotBtn.classList.remove('open'); syncGlyph(); }, 500);
+});
+clearBtn.addEventListener('click', () => setTimeout(syncGlyph, 50));
+setTimeout(syncGlyph, 800);
+
+// ── DETAIL PANEL ─────────────────────────────────────────────────────────
+window.openDetail = function(idx) {
+  const details = window._scanDetails;
+  if (!details || !details[idx]) return;
+  const d    = details[idx];
+  const repo = state.repos.find(r => r.fullName === d.fullName);
+  if (!repo) return;
+
+  const vulns = d.vulns || [];
+  let color = 'green';
+  if (d.hasError) color = 'red';
+  else if (vulns.length || d.missingScope) color = 'amber';
+
+  let commitsHtml = '';
+  if (d.commitError) {
+    commitsHtml = '<div class="detail-err">' + esc(d.commitError) + '</div>';
+  } else if (d.commits.length) {
+    commitsHtml = d.commits.slice(0, 5).map(ci =>
+      '<div class="detail-commit">' +
+        '<div class="commit-txt">' + esc(ci.message) + '</div>' +
+        '<div class="commit-meta"><span>' + esc(ci.author) + '</span>' +
+        '<a href="' + esc(ci.url) + '" target="_blank">view →</a></div>' +
+      '</div>'
+    ).join('');
+  } else {
+    commitsHtml = '<div class="detail-empty">No new commits since last scan</div>';
+  }
+
+  let vulnsHtml = '';
+  if (d.missingScope) {
+    vulnsHtml = '<div class="detail-err">Missing security_events scope — <a href="https://github.com/settings/tokens" target="_blank">update token →</a></div>';
+  } else if (d.vulnError) {
+    vulnsHtml = '<div class="detail-err">' + esc(d.vulnError) + '</div>';
+  } else if (vulns.length) {
+    vulnsHtml = vulns.map(v => {
+      const sc = v.severity==='critical' ? 'sev-critical' : v.severity==='high' ? 'sev-high' : v.severity==='medium' ? 'sev-medium' : 'sev-low';
+      return '<div class="detail-vuln">' +
+        '<div class="vuln-top"><span class="vuln-pkg">' + esc(v.pkg) + '</span><span class="sev ' + sc + '">' + esc(v.severity) + '</span></div>' +
+        '<div class="vuln-summary">' + esc(v.summary) + '</div>' +
+        '<div class="vuln-range">Affected: ' + esc(v.range) + '</div>' +
+        '<div class="remed-box"><div class="remed-title">Remediation Plan</div>' +
+        '<div class="remed-steps">' + esc(fixSteps(v)) + '</div></div>' +
+        '<a class="remed-link" href="' + esc(v.url) + '" target="_blank">Read advisory →</a>' +
+      '</div>';
+    }).join('');
+  } else {
+    vulnsHtml = '<div class="detail-empty">No open vulnerabilities detected</div>';
+  }
+
+  document.getElementById('detailRepoNm').textContent    = repo.fullName;
+  document.getElementById('detailStatusDot').className   = 'r-dot ' + color;
+  document.getElementById('detailCommitsBody').innerHTML = commitsHtml;
+  document.getElementById('detailVulnsBody').innerHTML   = vulnsHtml;
+
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+};
+
+window.closeDetail = function() {
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailPanel').classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+// ── MATRIX ANIMATION ─────────────────────────────────────────────────────
+const MTX_PAL = [
+  [24,  67, 184],   // blue
+  [24, 111,  61],   // green
+  [184,  37,  24],  // red
+  [154,  82,   0],  // amber
+  [109,  63, 160],  // purple
+  [ 10, 117, 104],  // teal
+  [192,  90,   0],  // orange
+  [ 43, 108, 176],  // steel-blue
+];
+const MTX_CHARS = '01ABCDEF<>/|@#$%*!=?01';
+let mtxActive = false;
+let mtxCvs    = [];
+
+function stopMatrix() { mtxActive = false; mtxCvs = []; }
+
+function startMatrix() {
+  stopMatrix();
+  document.querySelectorAll('.tile-canvas').forEach((cv, i) => {
+    const fz  = 9;
+    cv.width  = cv.offsetWidth  || cv.parentElement?.offsetWidth  || 160;
+    cv.height = cv.offsetHeight || cv.parentElement?.offsetHeight || 160;
+    if (!cv.width || !cv.height) return;
+    const cols  = Math.max(1, Math.floor(cv.width / fz));
+    const drops = Array.from({length: cols}, () => Math.random() * -(cv.height / fz) * 1.5);
+    const ctx   = cv.getContext('2d');
+    const rgb   = MTX_PAL[i % MTX_PAL.length];
+    const dark  = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.fillStyle = dark ? '#161614' : '#fafaf8';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    mtxCvs.push({ cv, ctx, drops, rgb, fz });
+  });
+  if (!mtxCvs.length) return;
+  mtxActive = true;
+  (function loop() {
+    if (!mtxActive) return;
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    mtxCvs.forEach(({ cv, ctx, drops, rgb, fz }) => {
+      if (!cv.isConnected) return;
+      ctx.fillStyle = dark ? 'rgba(22,22,20,0.17)' : 'rgba(250,250,248,0.17)';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.font = fz + 'px "JetBrains Mono",monospace';
+      const [r, g, b] = rgb;
+      for (let i = 0; i < drops.length; i++) {
+        const x = i * fz, y = Math.floor(drops[i]) * fz;
+        ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.78)';
+        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y);
+        ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.28)';
+        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y - fz);
+        ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.10)';
+        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y - fz * 2);
+        drops[i] += 0.28;
+        if (drops[i] * fz > cv.height + fz * 3 && Math.random() > 0.965) {
+          drops[i] = Math.random() * -18;
+        }
       }
     });
-    if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
-      throw new Error('Rate limit exceeded. Wait a moment.');
-    }
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`GitHub API ${response.status}: ${errorText.slice(0, 100)}`);
-    }
-    return response;
-  }
+    requestAnimationFrame(loop);
+  })();
+}
 
-  async function fetchAllUserRepos(token) {
-    let page = 1;
-    let allRepos = [];
-    let hasNext = true;
-    while (hasNext) {
-      const url = `https://api.github.com/user/repos?per_page=100&page=${page}&sort=full_name`;
-      const response = await fetchWithToken(url, token);
-      const repos = await response.json();
-      if (!repos.length) break;
-      allRepos.push(...repos);
-      const linkHeader = response.headers.get('Link');
-      hasNext = linkHeader && linkHeader.includes('rel="next"');
-      page++;
-    }
-    return allRepos.map(repo => ({
-      fullName: repo.full_name,
-      owner: repo.owner.login,
-      name: repo.name,
-      defaultBranch: repo.default_branch
-    }));
-  }
-
-  async function fetchLatestCommitDate(token, owner, repo, branch) {
-    try {
-      const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=1`;
-      const response = await fetchWithToken(url, token);
-      const commits = await response.json();
-      if (commits && commits.length && commits[0].commit?.committer?.date) {
-        return commits[0].commit.committer.date;
-      }
-      return new Date().toISOString();
-    } catch(e) { return new Date().toISOString(); }
-  }
-
-  async function fetchCommitsSince(token, owner, repo, branch, sinceISO) {
-    const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=40&since=${encodeURIComponent(sinceISO)}`;
-    const response = await fetchWithToken(url, token);
-    const commits = await response.json();
-    if (!Array.isArray(commits)) return [];
-    return commits.map(c => ({
-      sha: c.sha,
-      message: c.commit.message.split('\n')[0],
-      authorName: c.commit.author?.name || c.author?.login || 'unknown',
-      date: c.commit.author?.date || c.commit.committer?.date,
-      html_url: c.html_url
-    }));
-  }
-
-  async function fetchVulnerabilitiesForRepo(token, owner, repo) {
-    try {
-      const url = `https://api.github.com/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=50`;
-      const response = await fetchWithToken(url, token);
-      const alerts = await response.json();
-      if (!Array.isArray(alerts)) return [];
-      return alerts.map(alert => ({
-        id: alert.number,
-        summary: alert.security_advisory?.summary || alert.security_vulnerability?.package?.name || 'Unknown vulnerability',
-        severity: alert.security_advisory?.severity || (alert.security_vulnerability?.severity || 'unknown'),
-        description: alert.security_advisory?.description?.slice(0, 300) || 'No description',
-        packageName: alert.security_vulnerability?.package?.name || 'unknown package',
-        vulnerableVersionRange: alert.security_vulnerability?.vulnerable_version_range || 'unknown',
-        fixedVersion: alert.security_vulnerability?.first_patched_version?.identifier || null,
-        htmlUrl: alert.html_url,
-        ecosystem: alert.security_vulnerability?.package?.ecosystem || 'npm/maven/pip/etc'
-      }));
-    } catch (err) {
-      if (err.message.includes('403') || err.message.includes('404') || err.message.includes('security_events')) {
-        return { error: 'missing_permissions' };
-      }
-      return { error: err.message };
-    }
-  }
-
-  // Enhanced resolution steps generator
-  function getDetailedFixSteps(vuln) {
-    const pkg = vuln.packageName;
-    const fixed = vuln.fixedVersion;
-    const ecosystem = vuln.ecosystem?.toLowerCase() || '';
-    let commands = '';
-    if (ecosystem.includes('npm') || pkg.includes('npm') || ecosystem === 'npm') {
-      commands = `npm update ${pkg}\nnpm audit fix\n# Or upgrade manually:\nnpm install ${pkg}@${fixed || 'latest'}`;
-    } else if (ecosystem.includes('pip') || ecosystem === 'pip') {
-      commands = `pip install --upgrade ${pkg}\n# Or specific version:\npip install ${pkg}==${fixed || 'latest'}`;
-    } else if (ecosystem.includes('maven') || ecosystem === 'maven') {
-      commands = `Update <version> in pom.xml for ${pkg} to ${fixed || 'latest'}\nmvn versions:use-latest-versions -Dincludes=${pkg}`;
-    } else if (ecosystem.includes('go')) {
-      commands = `go get -u ${pkg}\ngo mod tidy`;
-    } else {
-      commands = `Check package manager documentation to upgrade ${pkg} to ${fixed || 'patched version'}`;
-    }
-    if (!fixed) commands += `\n⚠️ No patch version available → consider removing dependency or applying workaround from advisory.`;
-    return `🔧 RESOLUTION STEPS:\n1. Identify where ${pkg} is used (package.json, requirements.txt, etc.)\n2. Run: ${commands}\n3. Test your application after update\n4. Commit changes and push.\n📖 More details: ${vuln.htmlUrl}`;
-  }
-
-  // Error resolution suggestions
-  function getErrorResolution(errorType, detail = '') {
-    if (errorType === 'commit_fetch') {
-      return "❌ Commit fetch failed.\n🔧 STEPS:\n- Check network connectivity\n- Verify token still has 'repo' scope\n- If rate limited, wait 1 minute\n- Try regenerating token at https://github.com/settings/tokens";
-    }
-    if (errorType === 'missing_scope') {
-      return "🔐 Missing security_events scope.\n🔧 STEPS:\n1. Go to GitHub Settings → Developer settings → Personal access tokens\n2. Edit or regenerate token with 'repo' and 'security_events' scopes\n3. Update token in this app (click reset and reconnect)";
-    }
-    if (errorType === 'api_error') {
-      return `⚠️ API error: ${detail}\n🔧 STEPS:\n- Check token validity\n- Ensure you have access to the repository\n- Try refreshing token permissions`;
-    }
-    return `🔧 General troubleshooting: Verify token scopes, rate limit, or repo visibility. Try reconnecting.`;
-  }
-
-  async function refreshFullScan(showToastMsg = true) {
-    if (!currentState.token || !currentState.repos.length) {
-      showToast("Connect and load repositories first", true);
-      return false;
-    }
-    loadingGlobalDiv.style.display = 'flex';
-    repoGridContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:2rem;"><div class="loading-spinner"></div> analyzing repositories & generating remediation plans...</div>';
-    const token = currentState.token;
-    const oldFetchMap = { ...currentState.lastFetchMap };
-    const reposArray = [...currentState.repos];
-    const updatedTimestamps = { ...oldFetchMap };
-    const repoDetails = [];
-    
-    const batchLimit = 3;
-    for (let i = 0; i < reposArray.length; i += batchLimit) {
-      const batch = reposArray.slice(i, i + batchLimit);
-      const batchResults = await Promise.all(batch.map(async (repo) => {
-        const { fullName, owner, name, defaultBranch } = repo;
-        let commits = [];
-        let commitError = null;
-        let newTimestamp = oldFetchMap[fullName];
-        try {
-          if (oldFetchMap[fullName]) {
-            commits = await fetchCommitsSince(token, owner, name, defaultBranch, oldFetchMap[fullName]);
-            if (commits.length > 0 && commits[0].date) newTimestamp = commits[0].date;
-            else {
-              const freshDate = await fetchLatestCommitDate(token, owner, name, defaultBranch);
-              newTimestamp = freshDate;
-            }
-          } else {
-            const freshDate = await fetchLatestCommitDate(token, owner, name, defaultBranch);
-            newTimestamp = freshDate;
-          }
-          updatedTimestamps[fullName] = newTimestamp;
-        } catch(e) {
-          commitError = e.message;
-          updatedTimestamps[fullName] = oldFetchMap[fullName] || new Date().toISOString();
-        }
-
-        let vulnsResult = [];
-        let vulnError = null;
-        let missingScope = false;
-        try {
-          const vulnData = await fetchVulnerabilitiesForRepo(token, owner, name);
-          if (vulnData && vulnData.error === 'missing_permissions') {
-            missingScope = true;
-            vulnError = 'Missing security_events scope';
-          } else if (vulnData && vulnData.error) {
-            vulnError = vulnData.error;
-          } else if (Array.isArray(vulnData)) {
-            vulnsResult = vulnData;
-          }
-        } catch (err) {
-          vulnError = err.message;
-        }
-        const hasError = !!(commitError || (vulnError && !missingScope));
-        return { fullName, commits, vulns: vulnsResult, commitError, vulnError, missingScope, hasError };
-      }));
-      batchResults.forEach(r => repoDetails.push(r));
-      repoGridContainer.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:1rem;">📋 scanning ${Math.min(i+batchLimit, reposArray.length)}/${reposArray.length} repos & preparing fixes</div>`;
-    }
-
-    currentState.lastFetchMap = updatedTimestamps;
-    currentState.lastOverallSync = new Date().toISOString();
-    persistStateToLocal();
-    renderRepoGridWithRemediation(repoDetails);
-    const totalNew = repoDetails.reduce((a, r) => a + r.commits.length, 0);
-    const totalVuln = repoDetails.reduce((a, r) => a + (Array.isArray(r.vulns) ? r.vulns.length : 0), 0);
-    totalChangesSpan.innerText = totalNew;
-    totalVulnsSpan.innerText = totalVuln;
-    lastSyncTimeSpan.innerText = new Date().toLocaleString();
-    if (showToastMsg && totalVuln > 0) showToast(`🛠️ Found ${totalVuln} vulnerabilities — remediation steps are embedded in each card.`, false);
-    else if (showToastMsg) showToast("✅ Scan complete. No vulnerabilities detected.", false);
-    loadingGlobalDiv.style.display = 'none';
-    return true;
-  }
-
-  function renderRepoGridWithRemediation(repoDetails) {
-    if (!repoDetails.length) {
-      repoGridContainer.innerHTML = `<div class="card" style="grid-column:1/-1;">No repositories found.</div>`;
-      return;
-    }
-    let html = '';
-    for (const detail of repoDetails) {
-      const repo = currentState.repos.find(r => r.fullName === detail.fullName);
-      if (!repo) continue;
-      const hasError = detail.hasError;
-      const vulns = detail.vulns || [];
-      const hasVulns = vulns.length > 0;
-      const missingScope = detail.missingScope;
-      
-      let statusClass = 'repo-card-green';
-      let statusIcon = '🟢';
-      let statusText = 'Healthy';
-      if (hasError) {
-        statusClass = 'repo-card-red';
-        statusIcon = '🔴';
-        statusText = 'Error';
-      } else if (hasVulns || missingScope) {
-        statusClass = 'repo-card-amber';
-        statusIcon = '🟠';
-        statusText = hasVulns ? `${vulns.length} vulnerabilit${vulns.length !== 1 ? 'ies' : 'y'}` : 'Needs scope';
-      }
-      
-      html += `<div class="repo-card ${statusClass}">
-        <div class="repo-header">
-          <div class="repo-name-section">
-            <span class="status-icon">${statusIcon}</span>
-            <span>📁 ${escapeHtml(repo.fullName)}</span>
-          </div>
-          <div>
-            ${detail.commits.length ? `<span class="commit-badge">+${detail.commits.length} new commit${detail.commits.length !== 1 ? 's' : ''}</span>` : ''}
-            ${hasVulns ? `<span class="vuln-badge">⚠️ ${vulns.length} vuln${vulns.length !== 1 ? 's' : ''}</span>` : ''}
-          </div>
-        </div>`;
-      
-      // Error details + resolution steps
-      if (detail.commitError) {
-        html += `<div class="error-msg">
-          <strong>❌ Commit fetch error</strong><br>${escapeHtml(detail.commitError)}
-          <div class="resolution-box error-resolution" style="margin-top:8px;">
-            <div class="resolution-title">🔧 AUTO-REMEDIATION STEPS</div>
-            <div class="resolution-steps">${getErrorResolution('commit_fetch')}</div>
-          </div>
-        </div>`;
-      }
-      if (detail.vulnError && !detail.missingScope) {
-        html += `<div class="error-msg">
-          <strong>⚠️ Vulnerability scan error</strong><br>${escapeHtml(detail.vulnError)}
-          <div class="resolution-box error-resolution">
-            <div class="resolution-title">🔧 RESOLUTION PLAN</div>
-            <div class="resolution-steps">${getErrorResolution('api_error', detail.vulnError)}</div>
-          </div>
-        </div>`;
-      }
-      if (detail.missingScope) {
-        html += `<div class="error-msg">
-          <strong>🔐 Missing security_events scope</strong>
-          <div class="resolution-box error-resolution">
-            <div class="resolution-title">🔧 HOW TO FIX</div>
-            <div class="resolution-steps">${getErrorResolution('missing_scope')}</div>
-          </div>
-        </div>`;
-      }
-      
-      // Commits section
-      if (detail.commits.length) {
-        html += `<div class="section-title">🔄 New commits</div><div class="commit-list">`;
-        detail.commits.slice(0, 4).forEach(c => {
-          html += `<div class="commit-item">
-            <div>✏️ ${escapeHtml(c.message)}</div>
-            <div class="text-muted" style="margin-top:4px;">👤 ${escapeHtml(c.authorName)} · <a href="${c.html_url}" target="_blank">view</a></div>
-          </div>`;
-        });
-        if (detail.commits.length > 4) html += `<div class="text-muted">+ ${detail.commits.length-4} more</div>`;
-        html += `</div>`;
-      }
-      
-      // Vulnerabilities with FIX STEPS
-      if (vulns.length) {
-        html += `<div class="section-title">🚨 Vulnerabilities + Remediation</div><div class="vuln-list">`;
-        vulns.forEach(v => {
-          const severityClass = 
-            v.severity === 'critical' ? 'severity-critical' :
-            v.severity === 'high' ? 'severity-high' :
-            v.severity === 'medium' ? 'severity-medium' : 'severity-low';
-          const fixSteps = getDetailedFixSteps(v);
-          html += `<div class="vuln-item">
-            <div><strong>📦 ${escapeHtml(v.packageName)}</strong> <span class="vuln-severity ${severityClass}">${v.severity.toUpperCase()}</span></div>
-            <div style="margin:5px 0;">⚠️ ${escapeHtml(v.summary)}</div>
-            <div class="text-muted">📌 Affected: ${escapeHtml(v.vulnerableVersionRange)}</div>
-            <div class="resolution-box">
-              <div class="resolution-title">🛠️ STEP-BY-STEP FIX</div>
-              <div class="resolution-steps">${escapeHtml(fixSteps).replace(/\n/g, '<br>')}</div>
-            </div>
-            <div style="margin-top:6px;"><a href="${v.htmlUrl}" target="_blank">📖 Read full advisory →</a></div>
-          </div>`;
-        });
-        html += `</div>`;
-      }
-      
-      if (!detail.commits.length && !vulns.length && !detail.commitError && !detail.vulnError && !detail.missingScope) {
-        html += `<div class="text-muted" style="padding:1rem; text-align:center;">✅ No issues — up to date and secure.</div>`;
-      }
-      html += `</div>`;
-    }
-    repoGridContainer.innerHTML = html;
-  }
-
-  function renderBaselineDashboard() {
-    repoCountSpan.innerText = currentState.repos.length;
-    totalChangesSpan.innerText = "0";
-    totalVulnsSpan.innerText = "0";
-    lastSyncTimeSpan.innerText = currentState.lastOverallSync ? new Date(currentState.lastOverallSync).toLocaleString() : "just now";
-    repoGridContainer.innerHTML = `<div class="card" style="grid-column:1/-1;">✅ Ready. Click "Rescan + Remediation advice" to detect vulnerabilities and get fix guides.</div>`;
-  }
-
-  // ----------------------------- INIT & PERSISTENCE ---------------------------------
-  async function fullInit(token) {
-    loadingGlobalDiv.style.display = 'flex';
-    repoGridContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center;">📡 fetching repositories...</div>';
-    try {
-      const reposList = await fetchAllUserRepos(token);
-      if (!reposList.length) throw new Error('No repos found.');
-      const lastFetchMapNew = {};
-      for (let i = 0; i < reposList.length; i += 5) {
-        const batch = reposList.slice(i, i+5);
-        await Promise.all(batch.map(async (repo) => {
-          const latestDate = await fetchLatestCommitDate(token, repo.owner, repo.name, repo.defaultBranch);
-          lastFetchMapNew[repo.fullName] = latestDate;
-        }));
-        repoGridContainer.innerHTML = `<div style="grid-column:1/-1; text-align:center;">⚙️ caching ${Math.min(i+5, reposList.length)}/${reposList.length}</div>`;
-      }
-      currentState.repos = reposList;
-      currentState.lastFetchMap = lastFetchMapNew;
-      currentState.lastOverallSync = new Date().toISOString();
-      currentState.token = token;
-      persistStateToLocal();
-      renderBaselineDashboard();
-      showToast(`✅ ${reposList.length} repos loaded. Running first vulnerability & remediation scan...`, false);
-      dashboardArea.style.display = 'block';
-      initialMessageDiv.style.display = 'none';
-      await refreshFullScan(true);
-    } catch (err) {
-      showToast(`Init error: ${err.message}`, true);
-      dashboardArea.style.display = 'none';
-      initialMessageDiv.style.display = 'block';
-      initialMessageDiv.innerHTML = `<div class="card">❌ ${err.message}<br><br>Ensure token has 'repo' and 'security_events' scopes.</div>`;
-    } finally {
-      loadingGlobalDiv.style.display = 'none';
-    }
-  }
-
-  function persistStateToLocal() {
-    if (currentState.token) localStorage.setItem(STORAGE_KEYS.TOKEN, currentState.token);
-    localStorage.setItem(STORAGE_KEYS.REPOS_META, JSON.stringify({
-      repos: currentState.repos,
-      lastFetchMap: currentState.lastFetchMap,
-      lastOverallSync: currentState.lastOverallSync
-    }));
-  }
-
-  function loadStateFromLocal() {
-    const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
-    const storedMeta = localStorage.getItem(STORAGE_KEYS.REPOS_META);
-    if (storedToken) tokenInput.value = storedToken;
-    if (storedMeta && storedToken) {
-      try {
-        const parsed = JSON.parse(storedMeta);
-        currentState.repos = parsed.repos || [];
-        currentState.lastFetchMap = parsed.lastFetchMap || {};
-        currentState.lastOverallSync = parsed.lastOverallSync || null;
-        currentState.token = storedToken;
-        if (currentState.repos.length) {
-          dashboardArea.style.display = 'block';
-          initialMessageDiv.style.display = 'none';
-          renderBaselineDashboard();
-          setTimeout(() => refreshFullScan(true).catch(console.warn), 300);
-          return true;
-        }
-      } catch(e) {}
-    }
-    return false;
-  }
-
-  function resetAndClear() {
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.REPOS_META);
-    currentState = { token: null, repos: [], lastFetchMap: {}, lastOverallSync: null };
-    tokenInput.value = '';
-    dashboardArea.style.display = 'none';
-    initialMessageDiv.style.display = 'block';
-    initialMessageDiv.innerHTML = `<div class="card">🧹 Reset complete. Enter token to start.</div>`;
-    showToast("All data cleared", false);
-  }
-
-  connectBtn.addEventListener('click', async () => {
-    const token = tokenInput.value.trim();
-    if (!token) { showToast("Enter GitHub token", true); return; }
-    await fullInit(token);
-  });
-  manualRefreshBtn.addEventListener('click', async () => {
-    if (!currentState.token || !currentState.repos.length) { showToast("Connect first", true); return; }
-    await refreshFullScan(true);
-  });
-  clearBtn.addEventListener('click', resetAndClear);
-  function escapeHtml(str) { return String(str).replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
-  if (!loadStateFromLocal()) {
-    dashboardArea.style.display = 'none';
-    initialMessageDiv.style.display = 'block';
-  }
+// ── NO-OP OVERLAY (go directly to page) ──────────────────────────────────
+function showOverlay() {}
+async function hideOverlay() { return Promise.resolve(); }
+function addLine() {}
+function setProgress() {}
 </script>
 </body>
 </html>
