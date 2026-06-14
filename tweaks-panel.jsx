@@ -38,8 +38,8 @@
 //                        options={['#D97757', '#2A6FDB', '#1F8A5B', '#7A5AE0']}
 //                        onChange={(v) => setTweak('primaryColor', v)} />
 //           <TweakColor  label="Palette" value={t.palette}
-//                        options={[['#D97757', '#29261b', '#f6f4ef'],
-//                                  ['#475569', '#0f172a', '#f1f5f9']]}
+//                        options={[["#D97757", "#29261b", "#f6f4ef"],
+//                                  ["#475569", "#0f172a", "#f1f5f9"]]}
 //                        onChange={(v) => setTweak('palette', v)} />
 //           <TweakToggle label="Dark mode" value={t.dark}
 //                        onChange={(v) => setTweak('dark', v)} />

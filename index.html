@@ -681,6 +681,52 @@
       .access-popover { width: calc(100vw - 36px); right: -8px; }
       .detail-panel { width: 100vw; max-width: 100vw; }
     }
+
+    /* ── TILE COLOR FILL ─────────────────────────────── */
+    .tile-fill {
+      position: absolute; inset: 0;
+      opacity: 0;
+      transition: opacity 1.6s ease;
+      pointer-events: none; z-index: 0;
+    }
+    .tile-fill.green { background: var(--green); }
+    .tile-fill.amber { background: var(--amber); }
+    .tile-fill.red   { background: var(--red); }
+    .tile-fill.show  { opacity: 0.14; }
+
+    /* ── RESPONSIVE ENHANCEMENTS ──────────────────────── */
+    @media (max-width: 480px) {
+      .app { padding: 0 12px 80px; }
+      header { flex-wrap: wrap; gap: 8px; padding: 16px 0 12px; margin-bottom: 20px; }
+      .hd-right { gap: 5px; }
+      .hd-title { font-size: 13px; }
+      .status-pill { padding: 4px 8px; font-size: 9px; }
+      .stat-cell { padding: 12px 14px; }
+      .stat-num  { font-size: 22px; }
+      .stat-num.sm { font-size: 12px; }
+      .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); }
+      .access-popover { width: calc(100vw - 24px); right: -14px; }
+      .detail-panel { width: 100vw; max-width: 100vw; }
+      .detail-head { padding: 14px 16px; }
+      .detail-sec { padding: 14px 16px; }
+    }
+    @media (max-width: 360px) {
+      .repo-tiles { grid-template-columns: repeat(3, 1fr); }
+      .stat-num { font-size: 18px; }
+    }
+    @media (min-width: 481px) and (max-width: 768px) {
+      .app { padding: 0 20px 80px; }
+      .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+    }
+    @media (min-width: 769px) and (max-width: 1023px) {
+      .app { padding: 0 28px 80px; }
+      .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+    }
+    @media (orientation: landscape) and (max-height: 500px) {
+      header { padding: 8px 0 6px; margin-bottom: 12px; }
+      .app { padding: 0 16px 50px; }
+      .scan-terminal { height: 180px; }
+    }
   </style>
 </head>
 <body>
@@ -779,7 +825,7 @@
     <button class="detail-close" onclick="closeDetail()">&#10005;</button>
   </div>
   <div class="detail-sec">
-    <div class="detail-sec-lbl">Last 5 Commits</div>
+    <div class="detail-sec-lbl">Recent Commits — Chronological</div>
     <div id="detailCommitsBody"></div>
   </div>
   <div class="detail-sec">
@@ -1054,6 +1100,7 @@ function renderGrid(details) {
 
     return `<div class="repo-tile" onclick="openDetail(${i})">
       <canvas class="tile-canvas" data-ci="${i % 8}"></canvas>
+      <div class="tile-fill ${color}"></div>
       <div class="tile-status ${color}"></div>
       <div class="tile-owner">${esc(owner)}/</div>
       <div class="tile-repo">${esc(name)}</div>
@@ -1066,6 +1113,16 @@ function renderGrid(details) {
     </div>`;
   }).join('');
   requestAnimationFrame(startMatrix);
+  setTimeout(() => finalizeMatrix(details), 1800);
+}
+
+function finalizeMatrix(details) {
+  mtxActive = false;
+  mtxCvs = [];
+  document.querySelectorAll('.repo-tile').forEach((tile, i) => {
+    const fill = tile.querySelector('.tile-fill');
+    if (fill) setTimeout(() => fill.classList.add('show'), i * 40);
+  });
 }
 
 function renderBaseline() {
@@ -1128,7 +1185,7 @@ async function runScan() {
   syncEl.textContent    = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 
   renderGrid(results);
-  return { totalVuln, totalCommits };
+  return { totalVuln, totalCommits, results };
 }
 
 // ── FULL INIT + ANIMATED SCAN ─────────────────────────────────────────────
@@ -1221,6 +1278,7 @@ async function fullInit(token) {
     vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
     syncEl.textContent    = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     renderGrid(results);
+    setTimeout(() => finalizeMatrix(results), 1400);
 
     toast(totalVuln > 0
       ? `${totalVuln} vulnerabilit${totalVuln!==1?'ies':'y'} found — remediation plans embedded below`
@@ -1255,6 +1313,7 @@ document.getElementById('manualRefreshBtn').addEventListener('click', async () =
   );
   await wait(820);
   await hideOverlay();
+  finalizeMatrix(result.results || []);
   toast(result.totalVuln > 0 ? `${result.totalVuln} vulnerabilit${result.totalVuln!==1?'ies':'y'} found` : 'All clear');
 });
 
@@ -1301,6 +1360,7 @@ function restore() {
       );
       await wait(780);
       await hideOverlay();
+      finalizeMatrix(result.results || []);
     }, 400);
     return true;
   } catch { return false; }
@@ -1380,7 +1440,7 @@ clearBtn.addEventListener('click', () => setTimeout(syncGlyph, 50));
 setTimeout(syncGlyph, 800);
 
 // ── DETAIL PANEL ─────────────────────────────────────────────────────────
-window.openDetail = function(idx) {
+window.openDetail = async function(idx) {
   const details = window._scanDetails;
   if (!details || !details[idx]) return;
   const d    = details[idx];
@@ -1392,50 +1452,68 @@ window.openDetail = function(idx) {
   if (d.hasError) color = 'red';
   else if (vulns.length || d.missingScope) color = 'amber';
 
-  let commitsHtml = '';
-  if (d.commitError) {
-    commitsHtml = '<div class="detail-err">' + esc(d.commitError) + '</div>';
-  } else if (d.commits.length) {
-    commitsHtml = d.commits.slice(0, 5).map(ci =>
-      '<div class="detail-commit">' +
-        '<div class="commit-txt">' + esc(ci.message) + '</div>' +
-        '<div class="commit-meta"><span>' + esc(ci.author) + '</span>' +
-        '<a href="' + esc(ci.url) + '" target="_blank">view →</a></div>' +
-      '</div>'
-    ).join('');
-  } else {
-    commitsHtml = '<div class="detail-empty">No new commits since last scan</div>';
+  document.getElementById('detailRepoNm').textContent    = repo.fullName;
+  document.getElementById('detailStatusDot').className   = 'r-dot ' + color;
+  document.getElementById('detailCommitsBody').innerHTML = '<div class="detail-empty"><span class="spinner"></span> Loading commits…</div>';
+  document.getElementById('detailVulnsBody').innerHTML   = '<div class="detail-empty"><span class="spinner"></span> Loading vulnerabilities…</div>';
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  // Fetch real-time commits (last 30, most recent first)
+  try {
+    const commitRes = await apiFetch(
+      `https://api.github.com/repos/${repo.owner}/${repo.name}/commits?sha=${repo.branch}&per_page=30`,
+      state.token
+    );
+    const commitData = await commitRes.json();
+    const commits = Array.isArray(commitData) ? commitData.map(c => ({
+      sha:     c.sha,
+      message: c.commit.message.split('\n')[0],
+      author:  c.commit.author?.name || c.author?.login || 'unknown',
+      date:    c.commit.author?.date || c.commit.committer?.date,
+      url:     c.html_url
+    })) : [];
+
+    if (commits.length) {
+      document.getElementById('detailCommitsBody').innerHTML = commits.map(ci => {
+        const dt = ci.date ? new Date(ci.date).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        return '<div class="detail-commit">' +
+          '<div class="commit-txt">' + esc(ci.message) + '</div>' +
+          '<div class="commit-meta"><span>' + esc(ci.author) + '</span>' +
+          (dt ? '<span>' + esc(dt) + '</span>' : '') +
+          '<a href="' + esc(ci.url) + '" target="_blank" rel="noopener">view →</a></div>' +
+        '</div>';
+      }).join('');
+    } else {
+      document.getElementById('detailCommitsBody').innerHTML = '<div class="detail-empty">No commits found</div>';
+    }
+  } catch(err) {
+    document.getElementById('detailCommitsBody').innerHTML = '<div class="detail-err">' + esc(err.message) + '</div>';
   }
 
+  // Vulnerabilities with exact remediation steps
   let vulnsHtml = '';
   if (d.missingScope) {
-    vulnsHtml = '<div class="detail-err">Missing security_events scope — <a href="https://github.com/settings/tokens" target="_blank">update token →</a></div>';
+    vulnsHtml = '<div class="detail-err">Missing security_events scope — <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">update token →</a></div>';
   } else if (d.vulnError) {
     vulnsHtml = '<div class="detail-err">' + esc(d.vulnError) + '</div>';
   } else if (vulns.length) {
     vulnsHtml = vulns.map(v => {
-      const sc = v.severity==='critical' ? 'sev-critical' : v.severity==='high' ? 'sev-high' : v.severity==='medium' ? 'sev-medium' : 'sev-low';
+      const sc = v.severity==='critical'?'sev-critical':v.severity==='high'?'sev-high':v.severity==='medium'?'sev-medium':'sev-low';
       return '<div class="detail-vuln">' +
         '<div class="vuln-top"><span class="vuln-pkg">' + esc(v.pkg) + '</span><span class="sev ' + sc + '">' + esc(v.severity) + '</span></div>' +
         '<div class="vuln-summary">' + esc(v.summary) + '</div>' +
-        '<div class="vuln-range">Affected: ' + esc(v.range) + '</div>' +
-        '<div class="remed-box"><div class="remed-title">Remediation Plan</div>' +
+        '<div class="vuln-range">Affected: ' + esc(v.range) + (v.fixed ? ' → Fix: <strong>' + esc(v.fixed) + '</strong>' : ' <em>(no patch yet)</em>') + '</div>' +
+        '<div class="remed-box"><div class="remed-title">Exact Remediation Steps</div>' +
         '<div class="remed-steps">' + esc(fixSteps(v)) + '</div></div>' +
-        '<a class="remed-link" href="' + esc(v.url) + '" target="_blank">Read advisory →</a>' +
+        '<a class="remed-link" href="' + esc(v.url) + '" target="_blank" rel="noopener">Read full advisory →</a>' +
       '</div>';
     }).join('');
   } else {
     vulnsHtml = '<div class="detail-empty">No open vulnerabilities detected</div>';
   }
-
-  document.getElementById('detailRepoNm').textContent    = repo.fullName;
-  document.getElementById('detailStatusDot').className   = 'r-dot ' + color;
-  document.getElementById('detailCommitsBody').innerHTML = commitsHtml;
-  document.getElementById('detailVulnsBody').innerHTML   = vulnsHtml;
-
-  document.getElementById('detailOverlay').classList.add('open');
-  document.getElementById('detailPanel').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  document.getElementById('detailVulnsBody').innerHTML = vulnsHtml;
 };
 
 window.closeDetail = function() {
@@ -1506,11 +1584,6 @@ function startMatrix() {
   })();
 }
 
-// ── NO-OP OVERLAY (go directly to page) ──────────────────────────────────
-function showOverlay() {}
-async function hideOverlay() { return Promise.resolve(); }
-function addLine() {}
-function setProgress() {}
 </script>
 </body>
 </html>
