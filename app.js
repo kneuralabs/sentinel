@@ -176,7 +176,12 @@ async function getVulns(token, owner, repo) {
     }));
   } catch(err) {
     if (/GitHub API 404/.test(err.message)) return [];
-    if (/403|security_events/.test(err.message)) return { missingScope: true };
+    if (/403|security_events/.test(err.message)) {
+      // The token's scope (read from X-OAuth-Scopes) is the source of truth.
+      // A 403 on a repo whose token DOES carry the scope just means Dependabot
+      // is disabled / has no accessible alerts for that repo → treat as clean.
+      return state.hasSecurityScope === false ? { missingScope: true } : [];
+    }
     return { error: err.message };
   }
 }
