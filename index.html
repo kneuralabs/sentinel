@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" href="LOGO.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -91,7 +92,12 @@
 
     <div class="dash-controls">
       <span class="sec-label">Repositories</span>
-      <button class="btn btn-ghost" id="manualRefreshBtn">Rescan + Remediation</button>
+      <div class="dash-controls-right">
+        <div class="live-pill" id="livePill" style="display:none">
+          <span class="live-dot"></span><span id="liveStatus">Live</span>
+        </div>
+        <button class="btn btn-ghost" id="manualRefreshBtn">Rescan + Remediation</button>
+      </div>
     </div>
 
     <div id="repoGridContainer" class="repo-tiles"></div>
@@ -104,7 +110,6 @@
 <div class="detail-panel" id="detailPanel">
   <div class="detail-head">
     <div class="detail-head-left">
-      <div class="r-dot green" id="detailStatusDot"></div>
       <span class="detail-repo-nm" id="detailRepoNm"></span>
     </div>
     <button class="detail-close" onclick="closeDetail()">&#10005;</button>
