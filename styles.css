@@ -365,6 +365,10 @@ header {
   max-height: 230px; overflow-y: auto;
 }
 .stat-cell.open .stat-list { display: block; animation: popIn 0.14s ease; }
+.stat-list.repo-names {
+  display: block; font-family: var(--mono); font-size: 11.5px;
+  color: var(--t2); line-height: 1.6; word-break: break-word;
+}
 .stat-list-item {
   font-family: var(--mono); font-size: 11.5px; color: var(--t2);
   padding: 5px 0; line-height: 1.4; border-bottom: 1px solid var(--border);
