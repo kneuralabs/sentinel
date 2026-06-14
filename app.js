@@ -1,7 +1,6 @@
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const SK = { TOKEN: 'sentinel_token', META: 'sentinel_meta' };
 const SCAN_BATCH = 3;
-const INIT_BATCH = 5;
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let state = { token: null, repos: [], fetchMap: {}, lastSync: null };
@@ -113,12 +112,26 @@ async function getAllRepos(token) {
   }));
 }
 
-async function getLatestDate(token, owner, repo, branch) {
+// Fetches latest commit date, total commit count, and branch count in parallel.
+// Total commits is derived from the Link header last-page trick (no extra API call).
+async function getRepoMeta(token, owner, repo, branch) {
   try {
-    const res  = await apiFetch(`https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=1`, token);
-    const data = await res.json();
-    return data?.[0]?.commit?.committer?.date || new Date().toISOString();
-  } catch { return new Date().toISOString(); }
+    const [commitRes, branchRes] = await Promise.all([
+      apiFetch(`https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=1`, token),
+      apiFetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, token)
+    ]);
+    const [commitData, branchData] = await Promise.all([commitRes.json(), branchRes.json()]);
+
+    const link  = commitRes.headers.get('Link') || '';
+    const match = link.match(/page=(\d+)>; rel="last"/);
+    const totalCommits = match ? parseInt(match[1], 10) : (Array.isArray(commitData) && commitData.length ? 1 : 0);
+    const branchCount  = Array.isArray(branchData) ? branchData.length : 0;
+    const latestDate   = commitData?.[0]?.commit?.committer?.date || new Date().toISOString();
+
+    return { latestDate, totalCommits, branchCount };
+  } catch {
+    return { latestDate: new Date().toISOString(), totalCommits: 0, branchCount: 0 };
+  }
 }
 
 async function getCommitsSince(token, owner, repo, branch, since) {
@@ -193,23 +206,48 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── SHARED VULN BATCH SCAN ───────────────────────────────────────────────────
-async function batchVulnScan(token, repos, onProgress) {
+function updateStatsAfterScan(totalCommits, totalVuln) {
+  changesEl.textContent = totalCommits;
+  vulnsEl.textContent   = totalVuln;
+  vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
+  syncEl.textContent    = fmtTime(new Date().toISOString());
+}
+
+function setConnected(n) {
+  sDot.classList.add('live');
+  sText.textContent = `${n} repos`;
+}
+
+// ── SHARED VULN + META BATCH SCAN ────────────────────────────────────────────
+// Scans vulns and fetches repo meta (totalCommits, branchCount, latestDate) in parallel.
+// Returns results with latestDate so callers can build fetchMap without a separate pass.
+async function batchScan(token, repos, onBatchDone) {
   const results = [];
   for (let i = 0; i < repos.length; i += SCAN_BATCH) {
     const batch = repos.slice(i, i + SCAN_BATCH);
     const chunk = await Promise.all(batch.map(async repo => {
-      const { fullName, owner, name } = repo;
+      const { fullName, owner, name, branch } = repo;
       let vulns = [], vulnError = null, missingScope = false;
-      const vd = await getVulns(token, owner, name);
+
+      const [vd, meta] = await Promise.all([
+        getVulns(token, owner, name),
+        getRepoMeta(token, owner, name, branch)
+      ]);
+
       if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
       else if (vd?.error)         { vulnError = vd.error; }
       else if (Array.isArray(vd)) vulns = vd;
-      return { fullName, commits: [], vulns, commitError: null, vulnError, missingScope,
-               hasError: !!(vulnError && !missingScope) };
+
+      return {
+        fullName, commits: [], vulns, commitError: null, vulnError, missingScope,
+        hasError:     !!(vulnError && !missingScope),
+        latestDate:   meta.latestDate,
+        totalCommits: meta.totalCommits,
+        branchCount:  meta.branchCount
+      };
     }));
     chunk.forEach(r => results.push(r));
-    if (onProgress) onProgress(batch, i);
+    if (onBatchDone) onBatchDone(batch, i);
   }
   return results;
 }
@@ -222,35 +260,48 @@ function renderGrid(details) {
     return;
   }
   window._scanDetails = details;
+
   grid.innerHTML = details.map((d, i) => {
     const repo = state.repos.find(r => r.fullName === d.fullName);
     if (!repo) return '';
-    const vulns = d.vulns || [];
-    const color = tileColor(d);
+
+    const color   = tileColor(d);
+    const vulns   = d.vulns || [];
     const [owner, name] = repo.fullName.includes('/')
       ? repo.fullName.split('/')
       : [repo.fullName, repo.fullName];
 
-    const stats = [];
-    if (d.commits.length)                     stats.push({ t: pluralize(d.commits.length, 'commit'), c: 'tile-stat-neutral' });
-    if (vulns.length)                         stats.push({ t: pluralize(vulns.length, 'vuln'), c: 'tile-stat-danger' });
-    if (d.missingScope)                       stats.push({ t: 'missing scope', c: 'tile-stat-err' });
-    if (d.hasError && !d.missingScope)        stats.push({ t: 'scan error', c: 'tile-stat-err' });
-    if (!stats.length)                        stats.push({ t: 'all clear', c: 'tile-stat-ok' });
+    const secLabel = vulns.length
+      ? pluralize(vulns.length, 'vuln')
+      : d.missingScope
+        ? 'no scope'
+        : d.hasError
+          ? 'error'
+          : 'secure';
 
     return `<div class="repo-tile" onclick="openDetail(${i})">
       <div class="tile-fill ${color}"></div>
-      <div class="tile-status ${color}"></div>
-      <div class="tile-owner">${esc(owner)}/</div>
-      <div class="tile-repo">${esc(name)}</div>
-      <div class="tile-hover">
-        <div class="tile-hover-title">${esc(repo.fullName)}</div>
-        <div class="tile-hover-stats">
-          ${stats.map(s => `<span class="${s.c}">${s.t}</span>`).join('')}
+      <div class="tile-id">
+        <div class="tile-owner">${esc(owner)}/</div>
+        <div class="tile-repo">${esc(name)}</div>
+      </div>
+      <div class="tile-metrics">
+        <div class="tile-metric">
+          <span class="tm-num">${d.totalCommits ?? '—'}</span>
+          <span class="tm-lbl">commits</span>
+        </div>
+        <div class="tile-metric">
+          <span class="tm-num">${d.branchCount ?? '—'}</span>
+          <span class="tm-lbl">branches</span>
+        </div>
+        <div class="tile-metric tm-sec">
+          <span class="tm-sec-dot ${color}"></span>
+          <span class="tm-lbl">${secLabel}</span>
         </div>
       </div>
     </div>`;
   }).join('');
+
   finalizeMatrix();
 }
 
@@ -268,24 +319,12 @@ function renderBaseline() {
     <div class="empty-sub">Click Rescan to detect vulnerabilities across all repositories</div></div>`;
 }
 
-function updateStatsAfterScan(totalCommits, totalVuln) {
-  changesEl.textContent = totalCommits;
-  vulnsEl.textContent   = totalVuln;
-  vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
-  syncEl.textContent    = fmtTime(new Date().toISOString());
-}
-
-function setConnected(n) {
-  sDot.classList.add('live');
-  sText.textContent = `${n} repos`;
-}
-
 // ── CORE SCAN ─────────────────────────────────────────────────────────────────
 async function runScan() {
-  const token   = state.token;
-  const repos   = [...state.repos];
-  const oldMap  = { ...state.fetchMap };
-  const newMap  = { ...oldMap };
+  const token  = state.token;
+  const repos  = [...state.repos];
+  const oldMap = { ...state.fetchMap };
+  const newMap = { ...oldMap };
   const results = [];
 
   for (let i = 0; i < repos.length; i += SCAN_BATCH) {
@@ -293,25 +332,34 @@ async function runScan() {
     const chunk = await Promise.all(batch.map(async repo => {
       const { fullName, owner, name, branch } = repo;
       let commits = [], commitError = null;
-      try {
-        if (oldMap[fullName]) {
-          commits = await getCommitsSince(token, owner, name, branch, oldMap[fullName]);
-        }
-        const d = await getLatestDate(token, owner, name, branch);
-        newMap[fullName] = commits.length && commits[0].date ? commits[0].date : d;
-      } catch(e) {
-        commitError = e.message;
+      let vulns = [], vulnError = null, missingScope = false;
+
+      const [commitsResult, meta, vd] = await Promise.all([
+        oldMap[fullName]
+          ? getCommitsSince(token, owner, name, branch, oldMap[fullName]).catch(e => ({ error: e.message }))
+          : Promise.resolve([]),
+        getRepoMeta(token, owner, name, branch),
+        getVulns(token, owner, name)
+      ]);
+
+      if (commitsResult?.error) {
+        commitError = commitsResult.error;
         newMap[fullName] = oldMap[fullName] || new Date().toISOString();
+      } else {
+        commits = commitsResult;
+        newMap[fullName] = commits.length && commits[0].date ? commits[0].date : meta.latestDate;
       }
 
-      let vulns = [], vulnError = null, missingScope = false;
-      const vd = await getVulns(token, owner, name);
       if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
       else if (vd?.error)         { vulnError = vd.error; }
       else if (Array.isArray(vd)) vulns = vd;
 
-      return { fullName, commits, vulns, commitError, vulnError, missingScope,
-               hasError: !!(commitError || (vulnError && !missingScope)) };
+      return {
+        fullName, commits, vulns, commitError, vulnError, missingScope,
+        hasError:     !!(commitError || (vulnError && !missingScope)),
+        totalCommits: meta.totalCommits,
+        branchCount:  meta.branchCount
+      };
     }));
     chunk.forEach(r => results.push(r));
   }
@@ -352,18 +400,16 @@ async function fullInit(token) {
 
     addLine(`Token verified — ${repos.length} repositories found`, 'ok'); setProgress(18);
     await wait(180);
-    addLine('Caching commit baselines…', 'hl'); setProgress(22);
+    addLine('Scanning repositories…', 'hl'); setProgress(22);
+
+    const results = await batchScan(token, repos, (batch, i) => {
+      batch.forEach(r => addLine(`Scan   ${r.fullName}`));
+      setProgress(22 + Math.round(((i + SCAN_BATCH) / repos.length) * 74));
+      return wait(60);
+    });
 
     const dateMap = {};
-    for (let i = 0; i < repos.length; i += INIT_BATCH) {
-      const batch = repos.slice(i, i + INIT_BATCH);
-      await Promise.all(batch.map(async r => {
-        dateMap[r.fullName] = await getLatestDate(token, r.owner, r.name, r.branch);
-      }));
-      batch.forEach(r => addLine(`Index  ${r.fullName}`));
-      setProgress(22 + Math.round(((i + INIT_BATCH) / repos.length) * 28));
-      await wait(50);
-    }
+    results.forEach(r => { dateMap[r.fullName] = r.latestDate; });
 
     state.repos    = repos;
     state.fetchMap = dateMap;
@@ -374,14 +420,6 @@ async function fullInit(token) {
     renderBaseline();
     repoCountEl.textContent = repos.length;
     setConnected(repos.length);
-
-    addLine(`Baseline cached — scanning for vulnerabilities`, 'hl'); setProgress(52);
-    await wait(200);
-
-    const results = await batchVulnScan(token, repos, (batch, i) => {
-      batch.forEach(r => addLine(`Scan   ${r.fullName}`));
-      setProgress(52 + Math.round(((i + SCAN_BATCH) / repos.length) * 44));
-    });
 
     const totalVuln = results.reduce((a, r) => a + r.vulns.length, 0);
     setProgress(100);
@@ -561,13 +599,8 @@ connectBtn.addEventListener('click', () => {
 clearBtn.addEventListener('click', () => setTimeout(syncGlyph, 50));
 setTimeout(syncGlyph, 800);
 
-// ── DETAIL PANEL ─────────────────────────────────────────────────────────────
-const SEV_CLASS = {
-  critical: 'sev-critical',
-  high:     'sev-high',
-  medium:   'sev-medium',
-  low:      'sev-low'
-};
+// ── DETAIL MODAL ─────────────────────────────────────────────────────────────
+const SEV_CLASS = { critical: 'sev-critical', high: 'sev-high', medium: 'sev-medium', low: 'sev-low' };
 
 function buildCommitsHtml(commits) {
   if (!commits.length) return '<div class="detail-empty">No commits found</div>';
@@ -586,12 +619,11 @@ function buildCommitsHtml(commits) {
   }).join('');
 }
 
-function buildVulnsHtml(d) {
-  const vulns = d.vulns || [];
-  if (d.missingScope)
+function buildVulnsHtml(vulns, missingScope, vulnError) {
+  if (missingScope)
     return '<div class="detail-err">Missing security_events scope — <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">update token →</a></div>';
-  if (d.vulnError)
-    return `<div class="detail-err">${esc(d.vulnError)}</div>`;
+  if (vulnError)
+    return `<div class="detail-err">${esc(vulnError)}</div>`;
   if (!vulns.length)
     return '<div class="detail-empty">No open vulnerabilities detected</div>';
 
@@ -620,22 +652,28 @@ window.openDetail = async function(idx) {
   const repo = state.repos.find(r => r.fullName === d.fullName);
   if (!repo) return;
 
-  const color = tileColor(d);
   document.getElementById('detailRepoNm').textContent    = repo.fullName;
-  document.getElementById('detailStatusDot').className   = 'r-dot ' + color;
+  document.getElementById('detailStatusDot').className   = 'r-dot ' + tileColor(d);
   document.getElementById('detailCommitsBody').innerHTML = '<div class="detail-empty"><span class="spinner"></span> Loading commits…</div>';
   document.getElementById('detailVulnsBody').innerHTML   = '<div class="detail-empty"><span class="spinner"></span> Loading vulnerabilities…</div>';
   document.getElementById('detailOverlay').classList.add('open');
   document.getElementById('detailPanel').classList.add('open');
   document.body.style.overflow = 'hidden';
 
-  try {
-    const res  = await apiFetch(
+  // Fetch fresh commits and fresh vulns in parallel (avoids stale cached scope errors)
+  const [commitsResult, freshVd] = await Promise.all([
+    apiFetch(
       `https://api.github.com/repos/${repo.owner}/${repo.name}/commits?sha=${repo.branch}&per_page=30`,
       state.token
-    );
-    const data = await res.json();
-    const commits = Array.isArray(data) ? data.map(c => ({
+    ).then(r => r.json()).catch(e => ({ error: e.message })),
+    getVulns(state.token, repo.owner, repo.name)
+  ]);
+
+  // Commits
+  if (commitsResult?.error) {
+    document.getElementById('detailCommitsBody').innerHTML = `<div class="detail-err">${esc(commitsResult.error)}</div>`;
+  } else {
+    const commits = Array.isArray(commitsResult) ? commitsResult.map(c => ({
       sha:     c.sha,
       message: c.commit.message.split('\n')[0],
       author:  c.commit.author?.name || c.author?.login || 'unknown',
@@ -643,11 +681,18 @@ window.openDetail = async function(idx) {
       url:     c.html_url
     })) : [];
     document.getElementById('detailCommitsBody').innerHTML = buildCommitsHtml(commits);
-  } catch(err) {
-    document.getElementById('detailCommitsBody').innerHTML = `<div class="detail-err">${esc(err.message)}</div>`;
   }
 
-  document.getElementById('detailVulnsBody').innerHTML = buildVulnsHtml(d);
+  // Vulns — always fresh, never from stale cache
+  let vulns = [], missingScope = false, vulnError = null;
+  if (freshVd?.missingScope)       { missingScope = true; }
+  else if (freshVd?.error)         { vulnError = freshVd.error; }
+  else if (Array.isArray(freshVd)) { vulns = freshVd; }
+
+  // Update tile color in-place based on fresh vuln data
+  const freshColor = missingScope || vulns.length ? 'amber' : vulnError ? 'red' : 'green';
+  document.getElementById('detailStatusDot').className = 'r-dot ' + freshColor;
+  document.getElementById('detailVulnsBody').innerHTML = buildVulnsHtml(vulns, missingScope, vulnError);
 };
 
 window.closeDetail = function() {
