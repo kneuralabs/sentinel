@@ -778,50 +778,92 @@ html[data-theme="dark"] .live-pill { color: #4ade80; border-color: rgba(74,222,1
 .scope-warn a:hover { text-decoration: underline; }
 .scope-warn code { font-family: var(--mono); font-size: 10.5px; background: rgba(154,82,0,0.12); padding: 1px 5px; color: var(--amber); }
 
-/* ── RESPONSIVE ──────────────────────────────── */
-@media (max-width: 800px) {
-  .app { padding: 0 18px 80px; }
+/* ── RESPONSIVE ───────────────────────────────────────────────────────────────
+   Breakpoint ladder, smallest → largest device class:
+     • Phones (≤ 640px, portrait & landscape)  → fixed 2-column tile grid
+     • Small tablets / large phones (641–900px) → 3 columns
+     • Tablets (901–1100px)                     → auto-fill ≥150px
+     • Laptops / desktops (≥ 1101px)            → auto-fill ≥168px (base rule)
+   Honour iOS safe-area insets so notched / rounded devices keep edge padding. */
+
+/* Safe-area aware horizontal padding for the app shell */
+.app {
+  padding-left:  max(40px, env(safe-area-inset-left));
+  padding-right: max(40px, env(safe-area-inset-right));
+}
+
+/* ── LAPTOPS & DESKTOPS (≤ 1280px just trims gutters) ─────────────────── */
+@media (max-width: 1280px) {
+  .app { padding-left: max(32px, env(safe-area-inset-left)); padding-right: max(32px, env(safe-area-inset-right)); }
+}
+
+/* ── TABLETS (901–1100px) ────────────────────────────────────────────── */
+@media (min-width: 901px) and (max-width: 1100px) {
+  .app { padding-left: max(28px, env(safe-area-inset-left)); padding-right: max(28px, env(safe-area-inset-right)); }
+  .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* ── SMALL TABLETS / LARGE PHONES LANDSCAPE (641–900px) ──────────────── */
+@media (min-width: 641px) and (max-width: 900px) {
+  .app { padding-left: max(22px, env(safe-area-inset-left)); padding-right: max(22px, env(safe-area-inset-right)); }
   .stats-bar { grid-template-columns: 1fr 1fr; }
   .stats-bar .stat-cell:nth-child(2) { border-right: none; }
-  .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .repo-tiles { grid-template-columns: repeat(3, 1fr); }
   .hd-sub { display: none; }
   .hd-divider { display: none; }
-  .access-popover { width: calc(100vw - 36px); left: -8px; }
+  .access-popover { width: min(400px, calc(100vw - 36px)); left: -8px; }
   .detail-panel { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: 88vh; }
 }
 
-@media (max-width: 480px) {
-  .app { padding: 0 12px 80px; }
+/* ── PHONES (≤ 640px) — fixed 2-column tile grid, portrait & landscape ─ */
+@media (max-width: 640px) {
+  .app {
+    padding-top: 0;
+    padding-bottom: 80px;
+    padding-left:  max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
   header { flex-wrap: wrap; gap: 8px; padding: 16px 0 12px; margin-bottom: 20px; }
-  .hd-right { gap: 5px; }
+  .hd-left { gap: 12px; flex: 1 1 auto; min-width: 0; }
+  .hd-right { gap: 5px; flex-shrink: 0; }
+  .hd-sub { display: none; }
+  .hd-divider { display: none; }
   .hd-title { font-size: 22px; }
   .hd-logo { width: 36px; height: 36px; }
   .logo-sq { width: 34px; height: 34px; }
   .status-pill { padding: 4px 8px; font-size: 9px; }
-  .stat-cell { padding: 12px 14px; }
-  .stat-num  { font-size: 22px; }
-  .stat-num.sm { font-size: 12px; }
-  .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); }
-  .access-popover { width: calc(100vw - 24px); right: -14px; }
+
+  .stats-bar { grid-template-columns: 1fr 1fr; }
+  .stats-bar .stat-cell:nth-child(2) { border-right: none; }
+  .stat-cell { padding: 14px 16px; }
+  .stat-num  { font-size: 24px; }
+  .stat-num.sm { font-size: 13px; }
+
+  /* The headline request: phones always render tiles in two columns. */
+  .repo-tiles { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  .dash-controls { flex-wrap: wrap; }
+  .access-popover { width: calc(100vw - 24px); left: 50%; transform: translateX(-50%); }
   .detail-panel { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: 90vh; }
   .detail-head { padding: 14px 16px; }
   .detail-sec { padding: 14px 16px; }
 }
+
+/* ── VERY SMALL PHONES (≤ 360px) keep two columns, tighten spacing ───── */
 @media (max-width: 360px) {
-  .repo-tiles { grid-template-columns: repeat(3, 1fr); }
-  .stat-num { font-size: 18px; }
+  .repo-tiles { gap: 10px; }
+  .repo-tile { padding: 13px 13px; }
+  .stat-num { font-size: 20px; }
+  .tm-num { font-size: 15px; }
 }
-@media (min-width: 481px) and (max-width: 768px) {
-  .app { padding: 0 20px 80px; }
-  .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
-}
-@media (min-width: 769px) and (max-width: 1023px) {
-  .app { padding: 0 28px 80px; }
-  .repo-tiles { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
-}
+
+/* ── LANDSCAPE PHONES (short viewport) — reclaim vertical space ───────── */
 @media (orientation: landscape) and (max-height: 500px) {
   header { padding: 8px 0 6px; margin-bottom: 12px; }
-  .app { padding: 0 16px 50px; }
+  .app { padding-bottom: 50px; }
   .scan-box { width: min(400px, 92%); }
-  .scan-terminal { height: 160px; }
+  .scan-terminal { height: 150px; }
+  /* Square tiles get very tall on short landscape screens; relax the ratio
+     while keeping the requested two columns on phone-width devices. */
+  .repo-tile { aspect-ratio: 4 / 3; }
 }
