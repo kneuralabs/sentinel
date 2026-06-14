@@ -38,45 +38,46 @@
 
     /* ── SCAN OVERLAY ─────────────────────────────── */
     #scanOverlay {
-      position: fixed;
+      position: absolute;
       inset: 0;
-      background: #0b0b09;
-      z-index: 9000;
+      background: rgba(11, 11, 9, 0.97);
+      z-index: 100;
       display: none;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      align-items: stretch;
       transition: opacity 0.55s ease;
+      border: 1px solid #222220;
     }
     #scanOverlay.exiting { opacity: 0; }
 
-    .scan-brand {
+    .scan-terminal-header {
       display: flex;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 52px;
-      animation: scanFadeUp 0.5s ease forwards;
+      gap: 6px;
+      padding: 9px 14px;
+      background: #111110;
+      border-bottom: 1px solid #1e1e1c;
+      flex-shrink: 0;
     }
-    .scan-brand img {
-      width: 42px;
-      height: 42px;
-      object-fit: contain;
+    .scan-term-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #2e2e2b;
     }
-    .scan-brand-text {
-      font-family: var(--sans);
-      font-weight: 500;
-      font-size: 17px;
-      letter-spacing: 5px;
-      text-transform: uppercase;
-      color: #e8e8e5;
+    .scan-term-title {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: #3a3a38;
+      letter-spacing: 0.5px;
+      flex: 1;
+      text-align: center;
     }
 
     .scan-terminal {
       font-family: var(--mono);
       font-size: 11.5px;
-      width: 500px;
-      max-width: 88vw;
-      height: 252px;
+      padding: 14px 18px 12px;
+      flex: 1;
+      min-height: 0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -85,24 +86,46 @@
     }
     .scan-line {
       display: flex;
-      gap: 10px;
-      padding: 2.5px 0;
+      align-items: baseline;
+      gap: 8px;
+      padding: 1.5px 0;
       opacity: 0;
-      transform: translateX(-6px);
-      animation: scanLineIn 0.18s ease forwards;
+      animation: scanLineIn 0.15s ease forwards;
+      line-height: 1.7;
     }
-    .scan-ln   { color: #252523; min-width: 22px; text-align: right; user-select: none; }
-    .scan-arr  { color: #323230; }
-    .scan-msg  { color: #5a5a57; }
-    .scan-line.hl  .scan-msg { color: #aaa8a3; }
-    .scan-line.ok  .scan-msg { color: #4ade80; }
-    .scan-line.err .scan-msg { color: #f87171; }
+    .scan-prefix {
+      flex-shrink: 0;
+      font-weight: 500;
+      user-select: none;
+    }
+    .scan-line.cmd  .scan-prefix { color: #4a7fcf; }
+    .scan-line.out  .scan-prefix { color: #303030; }
+    .scan-line.ok   .scan-prefix { color: #4ade80; }
+    .scan-line.err  .scan-prefix { color: #f87171; }
+
+    .scan-msg { color: #404040; flex: 1; }
+    .scan-line.cmd  .scan-msg  { color: #c8c4bb; }
+    .scan-line.hl   .scan-msg  { color: #888480; }
+    .scan-line.ok   .scan-msg  { color: #86efac; }
+    .scan-line.err  .scan-msg  { color: #fca5a5; }
+
+    .scan-cursor {
+      display: inline-block;
+      width: 6px; height: 11px;
+      background: #c8c4bb;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: termBlink 1s step-end infinite;
+    }
+    @keyframes termBlink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
 
     .scan-prog-wrap {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
       height: 2px;
-      background: #181816;
+      background: #151513;
+      flex-shrink: 0;
     }
     #scanProgBar {
       height: 100%;
@@ -111,12 +134,8 @@
       transition: width 0.45s ease;
     }
 
-    @keyframes scanFadeUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
     @keyframes scanLineIn {
-      from { opacity: 0; transform: translateX(-6px); }
+      from { opacity: 0; transform: translateX(-4px); }
       to   { opacity: 1; transform: translateX(0); }
     }
 
@@ -574,10 +593,10 @@
     .tile-hover {
       position: absolute; inset: 0; background: var(--t1); padding: 16px;
       display: flex; flex-direction: column; justify-content: flex-end;
-      opacity: 0; transform: translateY(5px);
-      transition: opacity 0.16s ease, transform 0.16s ease; pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.16s ease; pointer-events: none;
     }
-    .repo-tile:hover .tile-hover { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .repo-tile:hover .tile-hover { opacity: 1; pointer-events: auto; }
     .tile-hover-title { font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: #f0f0ed; margin-bottom: 8px; line-height: 1.5; }
     .tile-hover-stats { display: flex; flex-direction: column; gap: 3px; font-size: 10px; font-family: var(--mono); }
     .tile-stat-neutral { color: rgba(240,240,237,0.45); }
@@ -686,7 +705,6 @@
     .tile-fill {
       position: absolute; inset: 0;
       opacity: 0;
-      transition: opacity 1.6s ease;
       pointer-events: none; z-index: 0;
     }
     .tile-fill.green { background: var(--green); }
@@ -731,18 +749,6 @@
 </head>
 <body>
 
-<!-- ── SCAN OVERLAY ──────────────────────────────────────────────────────── -->
-<div id="scanOverlay">
-  <div class="scan-brand">
-    <img src="LOGO.png" alt="Sentinel">
-    <span class="scan-brand-text">Sentinel</span>
-  </div>
-  <div id="scanTerminal" class="scan-terminal"></div>
-  <div class="scan-prog-wrap">
-    <div id="scanProgBar"></div>
-  </div>
-</div>
-
 <!-- ── APP ──────────────────────────────────────────────────────────────── -->
 <div class="app">
 
@@ -784,7 +790,22 @@
     <div class="empty-sub">Click the dot in the header to enter your GitHub token and begin scanning</div>
   </div>
 
-  <div id="dashboardArea" style="display:none;">
+  <div id="dashboardArea" style="display:none; position:relative; min-height:460px;">
+
+    <!-- ── SCAN OVERLAY ──────────────────────────────────────── -->
+    <div id="scanOverlay">
+      <div class="scan-terminal-header">
+        <div class="scan-term-dot"></div>
+        <div class="scan-term-dot"></div>
+        <div class="scan-term-dot"></div>
+        <span class="scan-term-title">sentinel — scan</span>
+      </div>
+      <div id="scanTerminal" class="scan-terminal"></div>
+      <div class="scan-prog-wrap">
+        <div id="scanProgBar"></div>
+      </div>
+    </div>
+
     <div class="stats-bar">
       <div class="stat-cell">
         <div class="stat-num" id="repoCount">—</div>
@@ -890,15 +911,27 @@ const progBar   = document.getElementById('scanProgBar');
 let   lineIdx   = 0;
 
 function addLine(msg, cls = '') {
-  const ln = ++lineIdx;
+  ++lineIdx;
+  // remove previous cursor
+  const prev = terminal.querySelector('.scan-cursor');
+  if (prev) prev.remove();
+
   const el = document.createElement('div');
-  el.className = `scan-line ${cls}`;
+  let lineClass, prefix;
+  if (cls === 'hl') {
+    lineClass = 'cmd';  prefix = '$';
+  } else if (cls === 'ok') {
+    lineClass = 'ok';   prefix = '[ok]';
+  } else if (cls === 'err') {
+    lineClass = 'err';  prefix = '[err]';
+  } else {
+    lineClass = 'out';  prefix = '›';
+  }
+  el.className = `scan-line ${lineClass}`;
   el.innerHTML =
-    `<span class="scan-ln">${String(ln).padStart(2,'0')}</span>` +
-    `<span class="scan-arr">›</span>` +
-    `<span class="scan-msg">${msg}</span>`;
+    `<span class="scan-prefix">${prefix}</span>` +
+    `<span class="scan-msg">${msg}<span class="scan-cursor"></span></span>`;
   terminal.appendChild(el);
-  // cap at 14 lines
   const all = terminal.querySelectorAll('.scan-line');
   if (all.length > 14) all[0].remove();
 }
@@ -911,6 +944,9 @@ function showOverlay() {
   lineIdx = 0;
   terminal.innerHTML = '';
   setProgress(0);
+  // Ensure the dashboard block is visible so the absolute overlay has a parent to cover
+  dashboard.style.display = 'block';
+  initMsg.style.display   = 'none';
   overlay.style.opacity  = '1';
   overlay.style.display  = 'flex';
   overlay.classList.remove('exiting');
@@ -1099,7 +1135,6 @@ function renderGrid(details) {
     if (!stats.length)    stats.push({ t: 'all clear', c: 'tile-stat-ok' });
 
     return `<div class="repo-tile" onclick="openDetail(${i})">
-      <canvas class="tile-canvas" data-ci="${i % 8}"></canvas>
       <div class="tile-fill ${color}"></div>
       <div class="tile-status ${color}"></div>
       <div class="tile-owner">${esc(owner)}/</div>
@@ -1112,16 +1147,13 @@ function renderGrid(details) {
       </div>
     </div>`;
   }).join('');
-  requestAnimationFrame(startMatrix);
-  setTimeout(() => finalizeMatrix(details), 1800);
+  finalizeMatrix(details);
 }
 
 function finalizeMatrix(details) {
-  mtxActive = false;
-  mtxCvs = [];
-  document.querySelectorAll('.repo-tile').forEach((tile, i) => {
+  document.querySelectorAll('.repo-tile').forEach(tile => {
     const fill = tile.querySelector('.tile-fill');
-    if (fill) setTimeout(() => fill.classList.add('show'), i * 40);
+    if (fill) fill.classList.add('show');
   });
 }
 
@@ -1229,9 +1261,7 @@ async function fullInit(token) {
     state.token = token; state.lastSync = new Date().toISOString();
     persist();
 
-    // Show dashboard skeleton
-    dashboard.style.display = 'block';
-    initMsg.style.display   = 'none';
+    // Update stats under the overlay (dashboard already visible via showOverlay)
     renderBaseline();
     repoCountEl.textContent = repos.length;
     setConnected(repos.length);
@@ -1278,7 +1308,6 @@ async function fullInit(token) {
     vulnsEl.className     = 'stat-num' + (totalVuln > 0 ? ' danger' : '');
     syncEl.textContent    = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     renderGrid(results);
-    setTimeout(() => finalizeMatrix(results), 1400);
 
     toast(totalVuln > 0
       ? `${totalVuln} vulnerabilit${totalVuln!==1?'ies':'y'} found — remediation plans embedded below`
