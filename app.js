@@ -225,6 +225,11 @@ function tileColor(d) {
 }
 
 let sortMode = 'sec';
+function latestCommitTime(d) {
+  const dates = [d.latestCommit && d.latestCommit.date, ...(d.commits || []).map(c => c.date)]
+    .filter(Boolean).map(x => new Date(x).getTime());
+  return dates.length ? Math.max(...dates) : 0;
+}
 function sortDetails(details) {
   const rank = { red: 0, amber: 1, green: 2 };
   const arr = [...details];
@@ -233,6 +238,7 @@ function sortDetails(details) {
     case 'commits-asc':    arr.sort((a, b) => (a.totalCommits || 0) - (b.totalCommits || 0)); break;
     case 'branches-desc':  arr.sort((a, b) => (b.branchCount || 0) - (a.branchCount || 0)); break;
     case 'branches-asc':   arr.sort((a, b) => (a.branchCount || 0) - (b.branchCount || 0)); break;
+    case 'recent':         arr.sort((a, b) => latestCommitTime(b) - latestCommitTime(a)); break;
     case 'alpha':          arr.sort((a, b) => a.fullName.localeCompare(b.fullName)); break;
     default:               arr.sort((a, b) => rank[tileColor(a)] - rank[tileColor(b)]); break;
   }
