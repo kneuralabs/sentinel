@@ -307,6 +307,7 @@ header {
   white-space: nowrap;
   flex-shrink: 0;
 }
+.btn svg { width: 13px; height: 13px; flex: none; }
 .btn-primary { background: var(--t1); color: #f0f0ed; }
 .btn-primary:hover { opacity: 0.82; }
 .btn-ghost { background: transparent; border-color: var(--border); color: var(--t2); }
