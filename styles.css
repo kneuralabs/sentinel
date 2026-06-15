@@ -23,6 +23,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -884,7 +885,11 @@ html[data-theme="dark"] .live-pill { color: #4ade80; border-color: rgba(74,222,1
   /* The headline request: phones always render tiles in two columns. */
   .repo-tiles { grid-template-columns: repeat(2, 1fr); gap: 12px; }
 
+  /* Stack the controls so the long button & sort menu never overflow. */
   .dash-controls { flex-wrap: wrap; }
+  .dash-controls-right { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+  .sort-select { flex: 1 1 auto; }
+  #manualRefreshBtn { flex: 1 1 auto; justify-content: center; }
   /* Anchor the popover to the viewport on phones so the tiny dot anchor
      doesn't push it off-screen. */
   .access-popover { position: fixed; top: 62px; left: 12px; right: 12px; width: auto; transform: none; }
