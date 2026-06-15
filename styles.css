@@ -29,7 +29,7 @@ body {
 
 /* ── SCAN OVERLAY ─────────────────────────────── */
 #scanOverlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(240, 240, 237, 0.72);
   backdrop-filter: blur(12px) saturate(0.82);
