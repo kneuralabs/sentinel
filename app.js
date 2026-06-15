@@ -129,10 +129,16 @@ async function getRepoMeta(token, owner, repo, branch) {
     const totalCommits = match ? parseInt(match[1], 10) : (Array.isArray(commitData) && commitData.length ? 1 : 0);
     const branchCount  = Array.isArray(branchData) ? branchData.length : 0;
     const latestDate   = commitData?.[0]?.commit?.committer?.date || new Date().toISOString();
+    const lc = Array.isArray(commitData) ? commitData[0] : null;
+    const latestCommit = lc ? {
+      sha: lc.sha,
+      message: (lc.commit.message || '').split('\n')[0],
+      date: lc.commit.author?.date || lc.commit.committer?.date || latestDate,
+    } : null;
 
-    return { latestDate, totalCommits, branchCount };
+    return { latestDate, totalCommits, branchCount, latestCommit };
   } catch {
-    return { latestDate: new Date().toISOString(), totalCommits: 0, branchCount: 0 };
+    return { latestDate: new Date().toISOString(), totalCommits: 0, branchCount: 0, latestCommit: null };
   }
 }
 
@@ -281,7 +287,22 @@ function renderStatDrilldowns(details) {
           <span class="sli-sub"><span class="sli-repo">${esc(c.repo)}</span>${dt ? ' · ' + esc(dt) : ''}</span>
         </div>`;
       }).join('')
-    : '<div class="stat-list-empty">No new commits</div>';
+    : (() => {
+        // No new commits since last scan — keep the single most recent commit
+        // visible in brief so the panel never looks empty.
+        const latest = (details || [])
+          .map(d => d.latestCommit ? { ...d.latestCommit, repo: d.fullName } : null)
+          .filter(Boolean)
+          .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0];
+        if (!latest) return '<div class="stat-list-empty">No new commits</div>';
+        const dt = latest.date
+          ? new Date(latest.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : '';
+        return `<div class="stat-list-item">
+          <span class="sli-main">${esc(latest.message)}</span>
+          <span class="sli-sub"><span class="sli-repo">${esc(latest.repo)}</span>${dt ? ' · ' + esc(dt) : ''} · latest</span>
+        </div>`;
+      })();
 
   // Open vulnerabilities — only repos that actually have open alerts.
   const vulnRepos = (details || [])
@@ -365,6 +386,7 @@ async function batchScan(token, repos, onBatchDone) {
         fullName, commits: [], vulns, commitError: null, vulnError, missingScope,
         hasError:     !!(vulnError && !missingScope),
         latestDate:   meta.latestDate,
+        latestCommit: meta.latestCommit,
         totalCommits: meta.totalCommits,
         branchCount:  meta.branchCount
       };
@@ -481,6 +503,7 @@ async function runScan() {
       return {
         fullName, commits, vulns, commitError, vulnError, missingScope,
         hasError:     !!(commitError || (vulnError && !missingScope)),
+        latestCommit: meta.latestCommit,
         totalCommits: meta.totalCommits,
         branchCount:  meta.branchCount
       };
