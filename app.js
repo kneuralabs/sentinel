@@ -283,32 +283,33 @@ function renderStatDrilldowns(details) {
   (details || []).forEach(d => (d.commits || []).forEach(c => commits.push({ ...c, repo: d.fullName })));
   commits.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   const top5 = commits.slice(0, 5);
-  commitList.innerHTML = top5.length
-    ? top5.map(c => {
-        const dt = c.date
-          ? new Date(c.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-          : '';
-        return `<div class="stat-list-item">
+
+  const fmtDt = d => d
+    ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+  const commitItem = (c, tag) => {
+    const dt = fmtDt(c.date);
+    const sub = [dt, tag].filter(Boolean).join(' · ');
+    return `<div class="stat-list-item">
           <span class="sli-main">${esc(c.message)}</span>
-          <span class="sli-sub"><span class="sli-repo">${esc(c.repo)}</span>${dt ? ' · ' + esc(dt) : ''}</span>
+          <span class="sli-sub"><span class="sli-repo">${esc(c.repo)}</span>${sub ? ' · ' + esc(sub) : ''}</span>
         </div>`;
-      }).join('')
-    : (() => {
-        // No new commits since last scan — keep the single most recent commit
-        // visible in brief so the panel never looks empty.
-        const latest = (details || [])
-          .map(d => d.latestCommit ? { ...d.latestCommit, repo: d.fullName } : null)
-          .filter(Boolean)
-          .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0];
-        if (!latest) return '<div class="stat-list-empty">No new commits</div>';
-        const dt = latest.date
-          ? new Date(latest.date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-          : '';
-        return `<div class="stat-list-item">
-          <span class="sli-main">${esc(latest.message)}</span>
-          <span class="sli-sub"><span class="sli-repo">${esc(latest.repo)}</span>${dt ? ' · ' + esc(dt) : ''} · latest</span>
-        </div>`;
-      })();
+  };
+
+  // Most recent commit across all repos. Retained as a footer entry beneath the
+  // new-commit list — and shown alone when there are no new commits — so the
+  // panel always reflects the last known commit, even after it stops being new.
+  const latest = (details || [])
+    .map(d => d.latestCommit ? { ...d.latestCommit, repo: d.fullName } : null)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0];
+
+  let commitHtml = top5.map(c => commitItem(c)).join('');
+  // Append the retained latest commit unless it's already the top of the list.
+  if (latest && !top5.some(c => c.sha && c.sha === latest.sha)) {
+    commitHtml += commitItem(latest, 'latest');
+  }
+  commitList.innerHTML = commitHtml || '<div class="stat-list-empty">No new commits</div>';
 
   // Open vulnerabilities — only repos that actually have open alerts.
   const vulnRepos = (details || [])
