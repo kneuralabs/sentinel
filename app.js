@@ -324,6 +324,74 @@ function renderStatDrilldowns(details) {
     : '<div class="stat-list-empty">No open vulnerabilities</div>';
 }
 
+// ── SECURITY POSTURE SUMMARY ──────────────────────────────────────────────────
+// Aggregates the latest scan results into an at-a-glance overview: the repository
+// RAG breakdown (secure / at-risk / error) and total open vulnerabilities grouped
+// by severity. Hidden until a scan with results is available.
+function vulnWord(n) { return `${n} open ${n === 1 ? 'vulnerability' : 'vulnerabilities'}`; }
+
+function renderPosture(details) {
+  const panel = document.getElementById('posturePanel');
+  if (!panel) return;
+  if (!details || !details.length) { panel.style.display = 'none'; return; }
+
+  const counts = { green: 0, amber: 0, red: 0 };
+  const sev = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
+  let totalVulns = 0;
+
+  details.forEach(d => {
+    counts[tileColor(d)]++;
+    (d.vulns || []).forEach(v => {
+      totalVulns++;
+      const s = (v.severity || 'unknown').toLowerCase();
+      sev[s in sev ? s : 'unknown']++;
+    });
+  });
+
+  // Headline verdict — worst state wins.
+  const verdict = document.getElementById('postureVerdict');
+  if (counts.red) {
+    verdict.textContent = `${pluralize(counts.red, 'repo')} need attention`;
+    verdict.className = 'posture-verdict pv-red';
+  } else if (totalVulns) {
+    verdict.textContent = vulnWord(totalVulns);
+    verdict.className = 'posture-verdict pv-amber';
+  } else if (counts.amber) {
+    verdict.textContent = `${pluralize(counts.amber, 'repo')} need review`;
+    verdict.className = 'posture-verdict pv-amber';
+  } else {
+    verdict.textContent = 'All repositories secure';
+    verdict.className = 'posture-verdict pv-green';
+  }
+
+  // Segmented repository-status bar (proportional to repo counts).
+  const seg = (cls, n) => n ? `<span class="pseg pseg-${cls}" style="flex:${n}" title="${n}"></span>` : '';
+  document.getElementById('postureBar').innerHTML =
+    seg('green', counts.green) + seg('amber', counts.amber) + seg('red', counts.red);
+
+  // Legend with absolute counts.
+  const legItem = (cls, label, n) =>
+    `<span class="pleg"><span class="pdot pdot-${cls}"></span>${n} ${label}</span>`;
+  document.getElementById('postureRepoLegend').innerHTML =
+    legItem('green', 'secure', counts.green) +
+    legItem('amber', 'at risk', counts.amber) +
+    legItem('red', 'error', counts.red);
+
+  // Severity breakdown.
+  const sevBox = document.getElementById('postureSev');
+  if (!totalVulns) {
+    sevBox.innerHTML = '<span class="psev-clean">✓ No open vulnerabilities</span>';
+  } else {
+    const chip = (k, label) => `<span class="psev psev-${k}"><b>${sev[k]}</b>${label}</span>`;
+    sevBox.innerHTML =
+      chip('critical', 'critical') + chip('high', 'high') +
+      chip('medium', 'medium') + chip('low', 'low') +
+      (sev.unknown ? `<span class="psev psev-low"><b>${sev.unknown}</b>other</span>` : '');
+  }
+
+  panel.style.display = 'block';
+}
+
 // ── LIVE CHECK ────────────────────────────────────────────────────────────────
 const livePill   = document.getElementById('livePill');
 const liveStatus = document.getElementById('liveStatus');
@@ -412,6 +480,7 @@ function renderGrid(details) {
     return;
   }
   renderStatDrilldowns(details);
+  renderPosture(details);
   details = sortDetails(details);
   window._scanDetails = details;
 
@@ -468,6 +537,7 @@ function renderBaseline() {
   vulnsEl.className       = 'stat-num';
   syncEl.textContent      = state.lastSync ? fmtTime(state.lastSync) : '—';
   renderStatDrilldowns(null);
+  renderPosture(null);
   grid.innerHTML = `<div class="empty-card" style="border:none; padding:32px 60px; grid-column:1/-1">
     <div class="empty-sub">Click Rescan to detect vulnerabilities across all repositories</div></div>`;
 }

@@ -102,6 +102,25 @@
       </div>
     </div>
 
+    <!-- ── SECURITY POSTURE SUMMARY ──────────────────────────── -->
+    <div class="posture-panel" id="posturePanel" style="display:none">
+      <div class="posture-head">
+        <span class="posture-title">Security Posture</span>
+        <span class="posture-verdict" id="postureVerdict"></span>
+      </div>
+      <div class="posture-body">
+        <div class="posture-block">
+          <div class="posture-block-lbl">Repository status</div>
+          <div class="posture-bar" id="postureBar"></div>
+          <div class="posture-legend" id="postureRepoLegend"></div>
+        </div>
+        <div class="posture-block">
+          <div class="posture-block-lbl">Open vulnerabilities by severity</div>
+          <div class="posture-sev" id="postureSev"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="dash-controls">
       <span class="sec-label">Repositories</span>
       <div class="dash-controls-right">

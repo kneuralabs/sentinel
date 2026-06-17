@@ -32,6 +32,15 @@ every widget in the app.
 - **Open Vulnerabilities** — count plus a vulnerability list.
 - **Last Scan** — timestamp of the most recent scan.
 
+### Security Posture summary
+An aggregate overview panel shown beneath the stats bar after a scan:
+- **Verdict** — a headline summarizing the worst current state (repos needing
+  attention, open vulnerability count, repos needing review, or "all secure").
+- **Repository status** — a proportional RAG bar plus a legend counting
+  secure / at-risk / error repositories.
+- **Open vulnerabilities by severity** — chips totalling critical / high /
+  medium / low (and "other") across all repositories.
+
 ### Dashboard controls
 - **Sort select** — order repos by security status, latest commit, commit count,
   branch count, or alphabetically.

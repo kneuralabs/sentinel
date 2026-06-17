@@ -377,6 +377,71 @@ header {
 .stat-list-item .sli-sub .sli-repo { color: var(--blue); }
 .stat-list-empty { font-size: 11.5px; color: var(--t3); padding: 4px 0; font-style: italic; }
 
+/* ── SECURITY POSTURE SUMMARY ────────────────────────────────────────────── */
+.posture-panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 18px 24px 20px;
+  margin-bottom: 30px;
+}
+.posture-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.posture-title {
+  font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--t3);
+}
+.posture-verdict {
+  font-family: var(--mono); font-size: 12px; font-weight: 500;
+  padding: 4px 10px;
+}
+.posture-verdict.pv-green { color: var(--green); background: rgba(24,111,61,0.10); }
+.posture-verdict.pv-amber { color: var(--amber); background: rgba(154,82,0,0.12); }
+.posture-verdict.pv-red   { color: var(--red);   background: rgba(184,37,24,0.12); }
+
+.posture-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; }
+.posture-block-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--t3); margin-bottom: 11px;
+}
+.posture-bar {
+  display: flex; height: 10px; gap: 2px; margin-bottom: 13px;
+  background: var(--border-lt);
+}
+.pseg { display: block; min-width: 4px; }
+.pseg-green { background: var(--green); }
+.pseg-amber { background: var(--amber); }
+.pseg-red   { background: var(--red); }
+.posture-legend { display: flex; flex-wrap: wrap; gap: 16px; }
+.pleg {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11.5px; color: var(--t2);
+}
+.pdot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.pdot-green { background: var(--green); }
+.pdot-amber { background: var(--amber); }
+.pdot-red   { background: var(--red); }
+
+.posture-sev { display: flex; flex-wrap: wrap; gap: 8px; }
+.psev {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  font-family: var(--mono); font-size: 11px; color: var(--t2);
+  padding: 5px 10px; border: 1px solid var(--border);
+}
+.psev b { font-size: 13px; font-weight: 600; }
+.psev-critical b { color: var(--red); }
+.psev-high b     { color: var(--red); }
+.psev-medium b   { color: var(--amber); }
+.psev-low b      { color: var(--green); }
+.psev-clean { font-family: var(--mono); font-size: 11.5px; color: var(--green); font-weight: 500; }
+
+html[data-density="compact"] .posture-panel { padding: 14px 20px 16px; }
+
+@media (max-width: 760px) {
+  .posture-body { grid-template-columns: 1fr; gap: 22px; }
+}
+
 /* ── DASH CONTROLS ───────────────────────────── */
 .dash-controls {
   display: flex;
