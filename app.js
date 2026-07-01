@@ -142,6 +142,18 @@ async function getRepoMeta(token, owner, repo, branch) {
   }
 }
 
+// Flattens a raw GitHub commit object into the { sha, message, author, date, url }
+// shape the UI renders. Prefers author metadata, falling back to committer.
+function mapCommit(c) {
+  return {
+    sha:     c.sha,
+    message: c.commit.message.split('\n')[0],
+    author:  c.commit.author?.name || c.author?.login || 'unknown',
+    date:    c.commit.author?.date || c.commit.committer?.date,
+    url:     c.html_url
+  };
+}
+
 async function getCommitsSince(token, owner, repo, branch, since) {
   const url = `https://api.github.com/repos/${owner}/${repo}/commits?sha=${branch}&per_page=40&since=${encodeURIComponent(since)}`;
   const res  = await apiFetch(url, token);
@@ -154,13 +166,7 @@ async function getCommitsSince(token, owner, repo, branch, since) {
       const d = c.commit.author?.date || c.commit.committer?.date;
       return d && d > since;
     })
-    .map(c => ({
-      sha:     c.sha,
-      message: c.commit.message.split('\n')[0],
-      author:  c.commit.author?.name || c.author?.login || 'unknown',
-      date:    c.commit.author?.date || c.commit.committer?.date,
-      url:     c.html_url
-    }));
+    .map(mapCommit);
 }
 
 async function getVulns(token, owner, repo) {
@@ -190,6 +196,15 @@ async function getVulns(token, owner, repo) {
     }
     return { error: err.message };
   }
+}
+
+// Normalizes a getVulns() result — an array of vulns, a { missingScope } marker,
+// or an { error } marker — into the flat { vulns, vulnError, missingScope } shape
+// every caller consumes. A missing scope reports a stable, human-readable error.
+function normalizeVulnResult(vd) {
+  if (vd?.missingScope) return { vulns: [], vulnError: 'Missing security_events scope', missingScope: true };
+  if (vd?.error)        return { vulns: [], vulnError: vd.error, missingScope: false };
+  return { vulns: Array.isArray(vd) ? vd : [], vulnError: null, missingScope: false };
 }
 
 // ── REMEDIATION ───────────────────────────────────────────────────────────────
@@ -446,16 +461,13 @@ async function batchScan(token, repos, onBatchDone) {
     const batch = repos.slice(i, i + SCAN_BATCH);
     const chunk = await Promise.all(batch.map(async repo => {
       const { fullName, owner, name, branch } = repo;
-      let vulns = [], vulnError = null, missingScope = false;
 
       const [vd, meta] = await Promise.all([
         getVulns(token, owner, name),
         getRepoMeta(token, owner, name, branch)
       ]);
 
-      if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
-      else if (vd?.error)         { vulnError = vd.error; }
-      else if (Array.isArray(vd)) vulns = vd;
+      const { vulns, vulnError, missingScope } = normalizeVulnResult(vd);
 
       return {
         fullName, commits: [], vulns, commitError: null, vulnError, missingScope,
@@ -522,12 +534,6 @@ function renderGrid(details) {
       </div>
     </div>`;
   }).join('');
-
-  finalizeMatrix();
-}
-
-function finalizeMatrix() {
-  // tiles are styled via tile-green/amber/red classes applied in renderGrid
 }
 
 function renderBaseline() {
@@ -555,7 +561,6 @@ async function runScan() {
     const chunk = await Promise.all(batch.map(async repo => {
       const { fullName, owner, name, branch } = repo;
       let commits = [], commitError = null;
-      let vulns = [], vulnError = null, missingScope = false;
 
       const [commitsResult, meta, vd] = await Promise.all([
         oldMap[fullName]
@@ -573,9 +578,7 @@ async function runScan() {
         newMap[fullName] = commits.length && commits[0].date ? commits[0].date : meta.latestDate;
       }
 
-      if (vd?.missingScope)       { missingScope = true; vulnError = 'Missing security_events scope'; }
-      else if (vd?.error)         { vulnError = vd.error; }
-      else if (Array.isArray(vd)) vulns = vd;
+      const { vulns, vulnError, missingScope } = normalizeVulnResult(vd);
 
       return {
         fullName, commits, vulns, commitError, vulnError, missingScope,
@@ -708,7 +711,6 @@ document.getElementById('manualRefreshBtn').addEventListener('click', async () =
   );
   await wait(820);
   await hideOverlay();
-  finalizeMatrix();
   toast(result.totalVuln > 0 ? `${pluralize(result.totalVuln, 'vulnerability')} found` : 'All clear');
 });
 
@@ -755,7 +757,6 @@ function restore() {
       );
       await wait(780);
       await hideOverlay();
-      finalizeMatrix();
       if (state.hasSecurityScope === false) showScopeWarning();
       startLiveCheck();
     }, 400);
@@ -926,21 +927,12 @@ window.openDetail = async function(idx) {
   if (commitsResult?.error) {
     document.getElementById('detailCommitsBody').innerHTML = `<div class="detail-err">${esc(commitsResult.error)}</div>`;
   } else {
-    const commits = Array.isArray(commitsResult) ? commitsResult.map(c => ({
-      sha:     c.sha,
-      message: c.commit.message.split('\n')[0],
-      author:  c.commit.author?.name || c.author?.login || 'unknown',
-      date:    c.commit.author?.date || c.commit.committer?.date,
-      url:     c.html_url
-    })) : [];
+    const commits = Array.isArray(commitsResult) ? commitsResult.map(mapCommit) : [];
     document.getElementById('detailCommitsBody').innerHTML = buildCommitsHtml(commits);
   }
 
   // Vulns — always fresh, never from stale cache
-  let vulns = [], missingScope = false, vulnError = null;
-  if (freshVd?.missingScope)       { missingScope = true; }
-  else if (freshVd?.error)         { vulnError = freshVd.error; }
-  else if (Array.isArray(freshVd)) { vulns = freshVd; }
+  const { vulns, vulnError, missingScope } = normalizeVulnResult(freshVd);
 
   // Update panel RAG color based on fresh vuln data
   const freshColor = missingScope || vulns.length ? 'amber' : vulnError ? 'red' : 'green';
@@ -954,65 +946,3 @@ window.closeDetail = function() {
   panel.classList.remove('open');
   document.body.style.overflow = '';
 };
-
-// ── MATRIX ANIMATION ─────────────────────────────────────────────────────────
-const MTX_PAL = [
-  [24,  67, 184],
-  [24, 111,  61],
-  [184,  37,  24],
-  [154,  82,   0],
-  [109,  63, 160],
-  [ 10, 117, 104],
-  [192,  90,   0],
-  [ 43, 108, 176],
-];
-const MTX_CHARS = '01ABCDEF<>/|@#$%*!=?01';
-let mtxActive = false;
-let mtxCvs    = [];
-
-function stopMatrix() { mtxActive = false; mtxCvs = []; }
-
-function startMatrix() {
-  stopMatrix();
-  document.querySelectorAll('.tile-canvas').forEach((cv, i) => {
-    const fz  = 9;
-    cv.width  = cv.offsetWidth  || cv.parentElement?.offsetWidth  || 160;
-    cv.height = cv.offsetHeight || cv.parentElement?.offsetHeight || 160;
-    if (!cv.width || !cv.height) return;
-    const cols  = Math.max(1, Math.floor(cv.width / fz));
-    const drops = Array.from({ length: cols }, () => Math.random() * -(cv.height / fz) * 1.5);
-    const ctx   = cv.getContext('2d');
-    const rgb   = MTX_PAL[i % MTX_PAL.length];
-    const dark  = document.documentElement.getAttribute('data-theme') === 'dark';
-    ctx.fillStyle = dark ? '#161614' : '#fafaf8';
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    mtxCvs.push({ cv, ctx, drops, rgb, fz });
-  });
-  if (!mtxCvs.length) return;
-  mtxActive = true;
-  (function loop() {
-    if (!mtxActive) return;
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    mtxCvs.forEach(({ cv, ctx, drops, rgb, fz }) => {
-      if (!cv.isConnected) return;
-      ctx.fillStyle = dark ? 'rgba(22,22,20,0.17)' : 'rgba(250,250,248,0.17)';
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.font = fz + 'px "JetBrains Mono",monospace';
-      const [r, g, b] = rgb;
-      for (let i = 0; i < drops.length; i++) {
-        const x = i * fz, y = Math.floor(drops[i]) * fz;
-        ctx.fillStyle = `rgba(${r},${g},${b},0.78)`;
-        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y);
-        ctx.fillStyle = `rgba(${r},${g},${b},0.28)`;
-        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y - fz);
-        ctx.fillStyle = `rgba(${r},${g},${b},0.10)`;
-        ctx.fillText(MTX_CHARS[Math.floor(Math.random() * MTX_CHARS.length)], x, y - fz * 2);
-        drops[i] += 0.28;
-        if (drops[i] * fz > cv.height + fz * 3 && Math.random() > 0.965) {
-          drops[i] = Math.random() * -18;
-        }
-      }
-    });
-    requestAnimationFrame(loop);
-  })();
-}
